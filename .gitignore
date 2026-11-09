@@ -82,3 +82,6 @@ CMakeFiles/
 
 # Photo Directory
 assets/photos/
+
+# Exclude local third-party vendor dependencies
+vendor/
