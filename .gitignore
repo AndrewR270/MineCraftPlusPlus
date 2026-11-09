@@ -66,3 +66,19 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# Build directories
+build/
+bin/
+out/
+
+# IDE files
+.vscode/
+.idea/
+*.vcxproj
+*.sln
+CMakeCache.txt
+CMakeFiles/
+
+# Photo Directory
+assets/photos/
