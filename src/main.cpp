@@ -1,4 +1,8 @@
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <glm.hpp>
+#include <gtc/matrix_transform.hpp>
+#include "graphics/Camera.h"
 #include <iostream>
 
 const unsigned int SCR_WIDTH = 1280;
@@ -34,7 +38,26 @@ int main() {
 
     glEnable(GL_DEPTH_TEST);
 
+    float deltaTime = 0.0f;
+    float lastFrame = 0.0f;
+
+    Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+
     while (!glfwWindowShouldClose(window)) {
+        float currentFrame = static_cast<float>(glfwGetTime());
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+
+        // Process movement inputs
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+            camera.ProcessKeyboard(FORWARD, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+            camera.ProcessKeyboard(BACKWARD, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+            camera.ProcessKeyboard(LEFT, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+            camera.ProcessKeyboard(RIGHT, deltaTime);
+
         processInput(window);
 
         // Classic Minecraft Beta clear color (Sky blue)
