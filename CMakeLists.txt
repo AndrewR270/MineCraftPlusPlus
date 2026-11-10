@@ -19,16 +19,21 @@ list(APPEND SOURCES vendor/glad/src/glad.c)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
-# 3. Link libraries and point to local include directories
+# 3. Link libraries and point to local include directories (Added vendor/stb here)
 target_link_libraries(${PROJECT_NAME} PRIVATE OpenGL::GL glfw)
 target_include_directories(${PROJECT_NAME} PRIVATE 
     src/
     vendor/glm
     vendor/glad/include
+    vendor/stb
 )
 
 # Automatically copy shaders folder to the build output directory
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-# If using multi-config generators like Visual Studio / MSBuild, copy to Debug/Release subdirs too:
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Debug)
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Release)
+
+# Automatically copy assets folder to the build output directory
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/assets DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/assets DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Debug)
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/assets DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Release)

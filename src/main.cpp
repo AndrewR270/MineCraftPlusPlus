@@ -6,12 +6,12 @@
 #include "graphics/Shader.h"
 #include "graphics/Cube.h"
 #include "graphics/Mesh.h"
+#include "graphics/Texture.h"
 #include <iostream>
 
 const unsigned int SCR_WIDTH = 1280;
 const unsigned int SCR_HEIGHT = 720;
 
-// Mouse state tracking
 float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
@@ -72,15 +72,18 @@ int main() {
 
     glEnable(GL_DEPTH_TEST);
 
-    // Initialize Shaders and Modular Mesh
     Shader ourShader("shaders/vertex.vs", "shaders/fragment.fs");
     Mesh cubeMesh(Graphics::CUBE_VERTICES, sizeof(Graphics::CUBE_VERTICES), Graphics::CUBE_VERTEX_COUNT);
+    
+    // Initialize Texture Atlas
+    Texture terrainAtlas("assets/textures/textures.png");
+    ourShader.use();
+    ourShader.setInt("texture1", 0);
 
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
     Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
 
-    // Configure GLFW Mouse Handling
     glfwSetWindowUserPointer(window, &camera);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -90,13 +93,13 @@ int main() {
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
             camera.ProcessKeyboard(FORWARD, deltaTime);
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
             camera.ProcessKeyboard(BACKWARD, deltaTime);
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
             camera.ProcessKeyboard(LEFT, deltaTime);
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
             camera.ProcessKeyboard(RIGHT, deltaTime);
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
             camera.ProcessKeyboard(UP, deltaTime);
@@ -108,9 +111,10 @@ int main() {
         glClearColor(0.6f, 0.7f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        // Bind texture atlas to unit 0 and activate shader
+        terrainAtlas.Bind(0);
         ourShader.use();
 
-        // Pass MVP Matrices
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         ourShader.setMat4("projection", projection);
 
@@ -120,7 +124,6 @@ int main() {
         glm::mat4 model = glm::mat4(1.0f);
         ourShader.setMat4("model", model);
 
-        // Draw cube
         cubeMesh.Draw();
 
         glfwSwapBuffers(window);
