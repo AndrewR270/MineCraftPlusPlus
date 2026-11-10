@@ -7,7 +7,9 @@
 #include "graphics/Cube.h"
 #include "graphics/Mesh.h"
 #include "graphics/Texture.h"
+#include "world/BlockRegistry.h"
 #include <iostream>
+#include <vector>
 
 const unsigned int SCR_WIDTH = 1280;
 const unsigned int SCR_HEIGHT = 720;
@@ -16,15 +18,18 @@ float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+void framebuffer_size_callback(GLFWwindow *window, int width, int height)
+{
     glViewport(0, 0, width, height);
 }
 
-void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
+void mouse_callback(GLFWwindow *window, double xposIn, double yposIn)
+{
     float xpos = static_cast<float>(xposIn);
     float ypos = static_cast<float>(yposIn);
 
-    if (firstMouse) {
+    if (firstMouse)
+    {
         lastX = xpos;
         lastY = ypos;
         firstMouse = false;
@@ -35,19 +40,23 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
     lastX = xpos;
     lastY = ypos;
 
-    Camera* camera = static_cast<Camera*>(glfwGetWindowUserPointer(window));
-    if (camera) {
+    Camera *camera = static_cast<Camera *>(glfwGetWindowUserPointer(window));
+    if (camera)
+    {
         camera->ProcessMouseMovement(xoffset, yoffset);
     }
 }
 
-void processInput(GLFWwindow* window) {
+void processInput(GLFWwindow *window)
+{
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 }
 
-int main() {
-    if (!glfwInit()) {
+int main()
+{
+    if (!glfwInit())
+    {
         std::cerr << "Failed to initialize GLFW" << std::endl;
         return -1;
     }
@@ -56,16 +65,22 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Minecraft Beta Engine - C++", NULL, NULL);
-    if (window == NULL) {
+    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Minecraft Beta Engine - C++", NULL, NULL);
+    if (window == NULL)
+    {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
         return -1;
     }
     glfwMakeContextCurrent(window);
+
+    // Enable V-Sync (1 locks to monitor refresh rate, 0 disables)
+    glfwSwapInterval(1);
+    
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    {
         std::cerr << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
@@ -73,25 +88,52 @@ int main() {
     glEnable(GL_DEPTH_TEST);
 
     Shader ourShader("shaders/vertex.vs", "shaders/fragment.fs");
-    Mesh cubeMesh(Graphics::CUBE_VERTICES, sizeof(Graphics::CUBE_VERTICES), Graphics::CUBE_VERTEX_COUNT);
-    
-    // Initialize Texture Atlas
+
+    // Generate meshes for different block types dynamically via BlockRegistry
+    std::vector<float> grassVerts = Graphics::GenerateBlockVertices(BlockID::GRASS);
+    Mesh grassMesh(grassVerts.data(), grassVerts.size() * sizeof(float), grassVerts.size() / 7);
+
+    std::vector<float> stoneVerts = Graphics::GenerateBlockVertices(BlockID::STONE);
+    Mesh stoneMesh(stoneVerts.data(), stoneVerts.size() * sizeof(float), stoneVerts.size() / 7);
+
+    std::vector<float> dirtVerts = Graphics::GenerateBlockVertices(BlockID::DIRT);
+    Mesh dirtMesh(dirtVerts.data(), dirtVerts.size() * sizeof(float), dirtVerts.size() / 7);
+
+    // Load Atlas Texture
     Texture terrainAtlas("assets/textures/textures.png");
     ourShader.use();
     ourShader.setInt("texture1", 0);
 
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
-    Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+    Camera camera(glm::vec3(0.0f, 0.0f, 5.0f));
+
+    // Inside your main render loop variables:
+    float lastTime = 0.0f;
+    int nbFrames = 0;
 
     glfwSetWindowUserPointer(window, &camera);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(window))
+    {
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+
+        // Inside the render loop (every frame):
+        nbFrames++;
+        float currentTime = static_cast<float>(glfwGetTime());
+        if (currentTime - lastTime >= 1.0f) { // Every 1 second
+            char fpsTitle[256];
+            double fps = double(nbFrames) / (currentTime - lastTime);
+            snprintf(fpsTitle, sizeof(fpsTitle), "Minecraft Beta Engine - C++ | FPS: %.2f", fps);
+            glfwSetWindowTitle(window, fpsTitle);
+            
+            nbFrames = 0;
+            lastTime = currentTime;
+        }
 
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
             camera.ProcessKeyboard(FORWARD, deltaTime);
@@ -111,7 +153,6 @@ int main() {
         glClearColor(0.6f, 0.7f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Bind texture atlas to unit 0 and activate shader
         terrainAtlas.Bind(0);
         ourShader.use();
 
@@ -121,10 +162,20 @@ int main() {
         glm::mat4 view = camera.GetViewMatrix();
         ourShader.setMat4("view", view);
 
+        // 1. Draw Grass Block at (0, 0, 0)
         glm::mat4 model = glm::mat4(1.0f);
         ourShader.setMat4("model", model);
+        grassMesh.Draw();
 
-        cubeMesh.Draw();
+        // 2. Draw Stone Block at (2, 0, 0)
+        model = glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f));
+        ourShader.setMat4("model", model);
+        stoneMesh.Draw();
+
+        // 3. Draw Dirt Block at (-2, 0, 0)
+        model = glm::translate(glm::mat4(1.0f), glm::vec3(-2.0f, 0.0f, 0.0f));
+        ourShader.setMat4("model", model);
+        dirtMesh.Draw();
 
         glfwSwapBuffers(window);
         glfwPollEvents();
