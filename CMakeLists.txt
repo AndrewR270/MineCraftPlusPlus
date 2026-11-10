@@ -26,3 +26,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     vendor/glm
     vendor/glad/include
 )
+
+# Automatically copy shaders folder to the build output directory
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+# If using multi-config generators like Visual Studio / MSBuild, copy to Debug/Release subdirs too:
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Debug)
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Release)
