@@ -92,7 +92,7 @@ int main() {
 
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
-    Camera camera(glm::vec3(8.0f, 70.0f, 30.0f)); // Positioned above terrain looking down
+    Camera camera(glm::vec3(0.0f, 0.0f, 20.0f)); // Positioned above terrain looking down
 
     // Performance tracking variables
     float lastTime = static_cast<float>(glfwGetTime());
@@ -125,18 +125,25 @@ int main() {
             lastTime = currentFrame;
         }
 
+        // SPRINT MECHANIC: Check if Left Control is pressed to scale movement speed
+        float velocityMultiplier = 1.0f;
+        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
+            velocityMultiplier = 2.5f; // Adjust this factor to sprint faster or slower
+        }
+        float currentDeltaTime = deltaTime * velocityMultiplier;
+
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-            camera.ProcessKeyboard(FORWARD, deltaTime);
+            camera.ProcessKeyboard(FORWARD, currentDeltaTime);
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-            camera.ProcessKeyboard(BACKWARD, deltaTime);
+            camera.ProcessKeyboard(BACKWARD, currentDeltaTime);
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
-            camera.ProcessKeyboard(LEFT, deltaTime);
+            camera.ProcessKeyboard(LEFT, currentDeltaTime);
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-            camera.ProcessKeyboard(RIGHT, deltaTime);
+            camera.ProcessKeyboard(RIGHT, currentDeltaTime);
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
-            camera.ProcessKeyboard(UP, deltaTime);
+            camera.ProcessKeyboard(UP, currentDeltaTime);
         if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
-            camera.ProcessKeyboard(DOWN, deltaTime);
+            camera.ProcessKeyboard(DOWN, currentDeltaTime);
 
         processInput(window);
 
