@@ -4,10 +4,10 @@
 #include <gtc/matrix_transform.hpp>
 #include "graphics/Camera.h"
 #include "graphics/Shader.h"
-#include "graphics/Cube.h"
 #include "graphics/Mesh.h"
 #include "graphics/Texture.h"
 #include "world/BlockRegistry.h"
+#include "world/Chunk.h"
 #include <iostream>
 #include <vector>
 
@@ -18,18 +18,15 @@ float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
 
-void framebuffer_size_callback(GLFWwindow *window, int width, int height)
-{
+void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
-void mouse_callback(GLFWwindow *window, double xposIn, double yposIn)
-{
+void mouse_callback(GLFWwindow *window, double xposIn, double yposIn) {
     float xpos = static_cast<float>(xposIn);
     float ypos = static_cast<float>(yposIn);
 
-    if (firstMouse)
-    {
+    if (firstMouse) {
         lastX = xpos;
         lastY = ypos;
         firstMouse = false;
@@ -41,22 +38,18 @@ void mouse_callback(GLFWwindow *window, double xposIn, double yposIn)
     lastY = ypos;
 
     Camera *camera = static_cast<Camera *>(glfwGetWindowUserPointer(window));
-    if (camera)
-    {
+    if (camera) {
         camera->ProcessMouseMovement(xoffset, yoffset);
     }
 }
 
-void processInput(GLFWwindow *window)
-{
+void processInput(GLFWwindow *window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 }
 
-int main()
-{
-    if (!glfwInit())
-    {
+int main() {
+    if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
         return -1;
     }
@@ -66,21 +59,19 @@ int main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Minecraft Beta Engine - C++", NULL, NULL);
-    if (window == NULL)
-    {
+    if (window == NULL) {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
         return -1;
     }
     glfwMakeContextCurrent(window);
 
-    // Enable V-Sync (1 locks to monitor refresh rate, 0 disables)
-    glfwSwapInterval(1);
+    // Disable V-Sync for unthrottled benchmarking (set to 1 to lock to monitor refresh)
+    glfwSwapInterval(0);
     
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    {
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
@@ -89,15 +80,10 @@ int main()
 
     Shader ourShader("shaders/vertex.vs", "shaders/fragment.fs");
 
-    // Generate meshes for different block types dynamically via BlockRegistry
-    std::vector<float> grassVerts = Graphics::GenerateBlockVertices(BlockID::GRASS);
-    Mesh grassMesh(grassVerts.data(), grassVerts.size() * sizeof(float), grassVerts.size() / 7);
-
-    std::vector<float> stoneVerts = Graphics::GenerateBlockVertices(BlockID::STONE);
-    Mesh stoneMesh(stoneVerts.data(), stoneVerts.size() * sizeof(float), stoneVerts.size() / 7);
-
-    std::vector<float> dirtVerts = Graphics::GenerateBlockVertices(BlockID::DIRT);
-    Mesh dirtMesh(dirtVerts.data(), dirtVerts.size() * sizeof(float), dirtVerts.size() / 7);
+    // 1. Generate optimized Chunk mesh with Face Culling
+    Chunk worldChunk;
+    std::vector<float> chunkVertices = worldChunk.GenerateMesh();
+    Mesh chunkMesh(chunkVertices.data(), chunkVertices.size() * sizeof(float), chunkVertices.size() / 7);
 
     // Load Atlas Texture
     Texture terrainAtlas("assets/textures/textures.png");
@@ -106,33 +92,37 @@ int main()
 
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
-    Camera camera(glm::vec3(0.0f, 0.0f, 5.0f));
+    Camera camera(glm::vec3(8.0f, 70.0f, 30.0f)); // Positioned above terrain looking down
 
-    // Inside your main render loop variables:
-    float lastTime = 0.0f;
+    // Performance tracking variables
+    float lastTime = static_cast<float>(glfwGetTime());
     int nbFrames = 0;
+
+    double startTime = glfwGetTime();
+    long totalFramesRendered = 0;
 
     glfwSetWindowUserPointer(window, &camera);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    while (!glfwWindowShouldClose(window))
-    {
+    while (!glfwWindowShouldClose(window)) {
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        // Inside the render loop (every frame):
+        totalFramesRendered++;
+
+        // Update live window title FPS every 1 second
         nbFrames++;
-        float currentTime = static_cast<float>(glfwGetTime());
-        if (currentTime - lastTime >= 1.0f) { // Every 1 second
+        if (currentFrame - lastTime >= 1.0f) {
             char fpsTitle[256];
-            double fps = double(nbFrames) / (currentTime - lastTime);
-            snprintf(fpsTitle, sizeof(fpsTitle), "Minecraft Beta Engine - C++ | FPS: %.2f", fps);
+            double fps = double(nbFrames) / (currentFrame - lastTime);
+            snprintf(fpsTitle, sizeof(fpsTitle), "Minecraft Beta Engine - C++ | FPS: %.2f | Quads: %zu", 
+                     fps, chunkVertices.size() / (7 * 6));
             glfwSetWindowTitle(window, fpsTitle);
             
             nbFrames = 0;
-            lastTime = currentTime;
+            lastTime = currentFrame;
         }
 
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
@@ -162,24 +152,27 @@ int main()
         glm::mat4 view = camera.GetViewMatrix();
         ourShader.setMat4("view", view);
 
-        // 1. Draw Grass Block at (0, 0, 0)
+        // Render entire chunk in a single draw call (Identity model matrix)
         glm::mat4 model = glm::mat4(1.0f);
         ourShader.setMat4("model", model);
-        grassMesh.Draw();
-
-        // 2. Draw Stone Block at (2, 0, 0)
-        model = glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f));
-        ourShader.setMat4("model", model);
-        stoneMesh.Draw();
-
-        // 3. Draw Dirt Block at (-2, 0, 0)
-        model = glm::translate(glm::mat4(1.0f), glm::vec3(-2.0f, 0.0f, 0.0f));
-        ourShader.setMat4("model", model);
-        dirtMesh.Draw();
+        chunkMesh.Draw();
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    // Print summary stats on window exit
+    double endTime = glfwGetTime();
+    double totalSessionTime = endTime - startTime;
+    double lifetimeAvgFps = (totalSessionTime > 0.0) ? (totalFramesRendered / totalSessionTime) : 0.0;
+
+    std::cout << "\n=========================================" << std::endl;
+    std::cout << "   ENGINE BENCHMARK PERFORMANCE LOG     " << std::endl;
+    std::cout << "=========================================" << std::endl;
+    std::cout << "Total Frames Rendered: " << totalFramesRendered << std::endl;
+    std::cout << "Session Duration:      " << totalSessionTime << " s" << std::endl;
+    std::cout << "Lifetime Average FPS:  " << lifetimeAvgFps << " FPS" << std::endl;
+    std::cout << "=========================================\n" << std::endl;
 
     glfwTerminate();
     return 0;

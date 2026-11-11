@@ -13,13 +13,13 @@ add_subdirectory(vendor/glfw)
 
 find_package(OpenGL REQUIRED)
 
-# 2. Collect all engine source files PLUS GLAD's source file
+# 2. Automatically collects all engine source files recursively (including src/world/Chunk.cpp)
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 list(APPEND SOURCES vendor/glad/src/glad.c)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
-# 3. Link libraries and point to local include directories (Added vendor/stb here)
+# 3. Link libraries and point to local include directories
 target_link_libraries(${PROJECT_NAME} PRIVATE OpenGL::GL glfw)
 target_include_directories(${PROJECT_NAME} PRIVATE 
     src/

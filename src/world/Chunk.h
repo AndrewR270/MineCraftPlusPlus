@@ -5,21 +5,20 @@
 #include <vector>
 
 const int CHUNK_WIDTH = 16;
-const int CHUNK_HEIGHT = 256;
+const int CHUNK_HEIGHT = 16;
 const int CHUNK_DEPTH = 16;
 
 class Chunk {
 public:
-    // 3D array storing block IDs for this chunk column
+    // 3D block storage array
     BlockID blocks[CHUNK_WIDTH][CHUNK_HEIGHT][CHUNK_DEPTH];
 
     Chunk();
-    
-    // Check bounds safely
+
     BlockID GetBlock(int x, int y, int z) const;
     void SetBlock(int x, int y, int z, BlockID id);
 
-    // Generates vertex data with face culling optimization
+    // Generates a single dynamic vertex array with face culling applied
     std::vector<float> GenerateMesh() const;
 };
 
