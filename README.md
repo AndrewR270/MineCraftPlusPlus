@@ -1,4 +1,4 @@
-# MinecraftPlusPlus
+# MineCraftPlusPlus
 A Minecraft Clone in C++.
 
 # Setup Command
@@ -15,6 +15,8 @@ GLFW: Creates the OS application window, manages the OpenGL context, captures ra
 
 GLAD: Loads physical OpenGL function pointers at runtime. Because GPU drivers vary by vendor (NVIDIA, AMD, Intel), GLAD maps function calls (like glGenBuffers) to driver memory addresses.
 
-GLM:Provides 3D vector and matrix math math utilities (glm::mat4, glm::vec3, glm::perspective, glm::lookAt) matching GLSL shader syntax.
+GLM: Provides 3D vector and matrix math math utilities (glm::mat4, glm::vec3, glm::perspective, glm::lookAt) matching GLSL shader syntax.
 
 stb_image: Decodes image byte streams (.png, .jpg) into raw RGBA pixel arrays in memory so OpenGL can upload them to VRAM.
+
+FastNoiseLite (FNL): Provides noise functions for terrain and cave generation.
