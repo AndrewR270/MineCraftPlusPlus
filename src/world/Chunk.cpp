@@ -9,35 +9,32 @@ Chunk::Chunk()
     noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
     noise.SetFrequency(0.03f); // Lower frequency = wider, rolling hills
 
-    for (int x = 0; x < CHUNK_WIDTH; x++)
-    {
-        for (int z = 0; z < CHUNK_DEPTH; z++)
-        {
-            // Generate 2D surface height using Perlin noise mapped around Y = 64
+    for (int x = 0; x < CHUNK_WIDTH; x++) {
+        for (int z = 0; z < CHUNK_DEPTH; z++) {
             float noiseVal = noise.GetNoise(static_cast<float>(x), static_cast<float>(z));
             int surfaceHeight = static_cast<int>(64.0f + noiseVal * 12.0f);
 
-            for (int y = 0; y < CHUNK_HEIGHT; y++)
-            {
-                if (y == 0)
-                {
-                    blocks[x][y][z] = BlockID::STONE; // Bedrock layer at the very bottom
+            for (int y = 0; y < CHUNK_HEIGHT; y++) {
+                if (y == 0) {
+                    blocks[x][y][z] = BlockID::BEDROCK; // Absolute bottom layer is solid bedrock
                 }
-                else if (y < surfaceHeight - 3)
-                {
+                else if (y < 5) {
+                    // Classic Java 1.0 jagged bedrock floor (randomized transition into stone)
+                    // We can use a pseudo-random check based on coordinates so it's deterministic per chunk
+                    bool isBedrock = (rand() % (y + 1) == 0) || (y == 1); 
+                    blocks[x][y][z] = isBedrock ? BlockID::BEDROCK : BlockID::STONE;
+                }
+                else if (y < surfaceHeight - 3) {
                     blocks[x][y][z] = BlockID::STONE; // Deep underground stone core
                 }
-                else if (y < surfaceHeight)
-                {
-                    blocks[x][y][z] = BlockID::DIRT; // 3-block dirt sublayer
+                else if (y < surfaceHeight) {
+                    blocks[x][y][z] = BlockID::DIRT;  // 3-block dirt sublayer
                 }
-                else if (y == surfaceHeight)
-                {
+                else if (y == surfaceHeight) {
                     blocks[x][y][z] = BlockID::GRASS; // Surface grass cap
                 }
-                else
-                {
-                    blocks[x][y][z] = BlockID::AIR; // Open atmosphere above ground
+                else {
+                    blocks[x][y][z] = BlockID::AIR;   // Open atmosphere
                 }
             }
         }

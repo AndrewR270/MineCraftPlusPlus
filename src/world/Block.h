@@ -7,7 +7,8 @@ enum class BlockID : uint8_t {
     AIR = 0,
     DIRT = 1,
     GRASS = 2,
-    STONE = 3
+    STONE = 3,
+    BEDROCK = 4
 };
 
 struct UVCoord {

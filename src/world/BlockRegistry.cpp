@@ -31,6 +31,12 @@ BlockRegistry::BlockRegistry() {
     blocks[BlockID::STONE] = {
         BlockID::STONE, "Stone", false, stoneUV, stoneUV, stoneUV
     };
+
+    // 4. Bedrock Block (col 1, row 1)
+    UVCoord bedrockUV = getTileUV(1, 1);
+    blocks[BlockID::BEDROCK] = {
+        BlockID::BEDROCK, "Bedrock", false, bedrockUV, bedrockUV, bedrockUV
+    };
 }
 
 BlockRegistry& BlockRegistry::GetInstance() {
