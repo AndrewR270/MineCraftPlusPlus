@@ -12,11 +12,10 @@ class Chunk {
 public:
     BlockID blocks[CHUNK_WIDTH][CHUNK_HEIGHT][CHUNK_DEPTH];
 
-    Chunk();
+    Chunk(int chunkX, int chunkZ, unsigned int seed);
 
     BlockID GetBlock(int x, int y, int z) const;
     void SetBlock(int x, int y, int z, BlockID id);
-
     std::vector<float> GenerateMesh() const;
 };
 

@@ -54,6 +54,7 @@ int main() {
         return -1;
     }
 
+
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -81,7 +82,10 @@ int main() {
     Shader ourShader("shaders/vertex.vs", "shaders/fragment.fs");
 
     // 1. Generate optimized Chunk mesh with Face Culling
-    Chunk worldChunk;
+    unsigned int worldSeed = static_cast<unsigned int>(time(nullptr));
+    srand(worldSeed);
+
+    Chunk worldChunk(0, 0, worldSeed);
     std::vector<float> chunkVertices = worldChunk.GenerateMesh();
     Mesh chunkMesh(chunkVertices.data(), chunkVertices.size() * sizeof(float), chunkVertices.size() / 7);
 
@@ -128,7 +132,7 @@ int main() {
         // SPRINT MECHANIC: Check if Left Control is pressed to scale movement speed
         float velocityMultiplier = 1.0f;
         if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
-            velocityMultiplier = 2.5f; // Adjust this factor to sprint faster or slower
+            velocityMultiplier = 5.0f; // Adjust this factor to sprint faster or slower
         }
         float currentDeltaTime = deltaTime * velocityMultiplier;
 

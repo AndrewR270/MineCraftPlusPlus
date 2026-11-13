@@ -1,40 +1,87 @@
 #include "Chunk.h"
 #include "BlockRegistry.h"
 #include "FastNoiseLite.h"
+#include <cmath>
+#include <cstdlib>
 
-Chunk::Chunk()
-{
-    // Initialize FastNoiseLite for procedural terrain
-    FastNoiseLite noise;
-    noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    noise.SetFrequency(0.03f); // Lower frequency = wider, rolling hills
+// ============================================================================
+// WORLD & CAVE GENERATION TUNING PARAMETERS
+// You can tweak these variables to adjust terrain shape and cave morphology.
+// ============================================================================
+static float WORLD_TERRAIN_FREQ       = 0.015f;  // Controls width of surface hills (lower = wider, rolling hills).
+static float CAVE_FREQ_XZ             = 0.035f;  // Controls horizontal scale and winding frequency of cave tunnels.
+static float CAVE_FREQ_Y              = 0.075f;  // Controls vertical scale of caves. Lower this independently of XZ to flatten caves horizontally.
+static float CAVE_DENSITY_THRESHOLD   = 0.15f;  // Controls tunnel thickness (larger = massive caverns, smaller = tight, narrow tunnels).
+static int   SURFACE_BUFFER           = 20;       // Number of solid stone blocks maintained beneath the dirt/surface to dome cave ceilings naturally.
+// ============================================================================
+
+Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed) {
+    FastNoiseLite terrainNoise;
+    terrainNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    terrainNoise.SetFrequency(WORLD_TERRAIN_FREQ);
+    terrainNoise.SetSeed(static_cast<int>(seed));
+
+    FastNoiseLite caveNoise;
+    caveNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    caveNoise.SetFrequency(1.0f);
+    caveNoise.SetSeed(static_cast<int>(seed + 1));
 
     for (int x = 0; x < CHUNK_WIDTH; x++) {
         for (int z = 0; z < CHUNK_DEPTH; z++) {
-            float noiseVal = noise.GetNoise(static_cast<float>(x), static_cast<float>(z));
+            float worldX = static_cast<float>(chunkX * CHUNK_WIDTH + x);
+            float worldZ = static_cast<float>(chunkZ * CHUNK_DEPTH + z);
+
+            float noiseVal = terrainNoise.GetNoise(worldX, worldZ);
             int surfaceHeight = static_cast<int>(64.0f + noiseVal * 12.0f);
 
             for (int y = 0; y < CHUNK_HEIGHT; y++) {
                 if (y == 0) {
-                    blocks[x][y][z] = BlockID::BEDROCK; // Absolute bottom layer is solid bedrock
+                    blocks[x][y][z] = BlockID::BEDROCK;
                 }
                 else if (y < 5) {
-                    // Classic Java 1.0 jagged bedrock floor (randomized transition into stone)
-                    // We can use a pseudo-random check based on coordinates so it's deterministic per chunk
-                    bool isBedrock = (rand() % (y + 1) == 0) || (y == 1); 
+                    bool isBedrock = (rand() % (y + 1) == 0) || (y == 1);
                     blocks[x][y][z] = isBedrock ? BlockID::BEDROCK : BlockID::STONE;
                 }
-                else if (y < surfaceHeight - 3) {
-                    blocks[x][y][z] = BlockID::STONE; // Deep underground stone core
-                }
-                else if (y < surfaceHeight) {
-                    blocks[x][y][z] = BlockID::DIRT;  // 3-block dirt sublayer
-                }
                 else if (y == surfaceHeight) {
-                    blocks[x][y][z] = BlockID::GRASS; // Surface grass cap
+                    blocks[x][y][z] = BlockID::GRASS;
+                }
+                else if (y > surfaceHeight - 4 && y < surfaceHeight) {
+                    blocks[x][y][z] = BlockID::DIRT;
+                }
+                else if (y >= surfaceHeight) {
+                    blocks[x][y][z] = BlockID::AIR;
                 }
                 else {
-                    blocks[x][y][z] = BlockID::AIR;   // Open atmosphere
+                    // Check distance from the local surface height
+                    int depthBelowSurface = surfaceHeight - y;
+
+                    if (depthBelowSurface > SURFACE_BUFFER) {
+                        // Deep underground: full unconstrained cave generation
+                        float sampleX = worldX * CAVE_FREQ_XZ;
+                        float sampleY = static_cast<float>(y) * CAVE_FREQ_Y;
+                        float sampleZ = worldZ * CAVE_FREQ_XZ;
+
+                        float cVal = caveNoise.GetNoise(sampleX, sampleY, sampleZ);
+                        bool isCave = std::abs(cVal) < CAVE_DENSITY_THRESHOLD;
+
+                        blocks[x][y][z] = isCave ? BlockID::AIR : BlockID::STONE;
+                    } 
+                    else {
+                        // Surface transition buffer: smoothly taper cave size to 0 as we get close to dirt,
+                        // creating natural, domed stone ceilings instead of flat clipped shelves.
+                        float sampleX = worldX * CAVE_FREQ_XZ;
+                        float sampleY = static_cast<float>(y) * CAVE_FREQ_Y;
+                        float sampleZ = worldZ * CAVE_FREQ_XZ;
+
+                        float cVal = caveNoise.GetNoise(sampleX, sampleY, sampleZ);
+                        
+                        // Scale threshold down based on proximity to the surface buffer boundary
+                        float taperFactor = static_cast<float>(depthBelowSurface) / static_cast<float>(SURFACE_BUFFER);
+                        float taperedThreshold = CAVE_DENSITY_THRESHOLD * taperFactor;
+
+                        bool isCave = std::abs(cVal) < taperedThreshold;
+                        blocks[x][y][z] = isCave ? BlockID::AIR : BlockID::STONE;
+                    }
                 }
             }
         }
