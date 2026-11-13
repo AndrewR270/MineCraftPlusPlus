@@ -20,3 +20,9 @@ GLM: Provides 3D vector and matrix math math utilities (glm::mat4, glm::vec3, gl
 stb_image: Decodes image byte streams (.png, .jpg) into raw RGBA pixel arrays in memory so OpenGL can upload them to VRAM.
 
 FastNoiseLite (FNL): Provides noise functions for terrain and cave generation.
+
+static float WORLD_TERRAIN_FREQ       = 0.015f;  // Controls width of surface hills
+static float CAVE_FREQ_XZ             = 0.015f;  // Controls horizontal scale and winding frequency of caves
+static float CAVE_FREQ_Y              = 0.025f;  // Controls vertical scale of caves
+static float CAVE_DENSITY_THRESHOLD   = 0.005f;  // Controls tunnel thickness / radius squared
+static int   SURFACE_BUFFER           = 20;      // Solid stone buffer beneath dirt to dome cave ceilings
