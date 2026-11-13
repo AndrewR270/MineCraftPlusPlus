@@ -26,6 +26,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     vendor/glm
     vendor/glad/include
     vendor/stb
+    vendor/fnl
 )
 
 # Automatically copy shaders folder to the build output directory

@@ -1,20 +1,35 @@
 #include "Chunk.h"
 #include "BlockRegistry.h"
+#include "FastNoiseLite.h"
 
 Chunk::Chunk() {
-    // Populate a test terrain matching your 16x64x16 grid:
-    // Stone base (0-30), Dirt middle (31-62), Grass top (63)
+    // Initialize FastNoiseLite for procedural terrain
+    FastNoiseLite noise;
+    noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+    noise.SetFrequency(0.03f); // Lower frequency = wider, rolling hills
+
     for (int x = 0; x < CHUNK_WIDTH; x++) {
         for (int z = 0; z < CHUNK_DEPTH; z++) {
+            // Generate 2D surface height using Perlin noise mapped around Y = 64
+            float noiseVal = noise.GetNoise(static_cast<float>(x), static_cast<float>(z));
+            int surfaceHeight = static_cast<int>(64.0f + noiseVal * 12.0f);
+
             for (int y = 0; y < CHUNK_HEIGHT; y++) {
-                if (y < 30)
-                    blocks[x][y][z] = BlockID::STONE;
-                else if (y < 63)
-                    blocks[x][y][z] = BlockID::DIRT;
-                else if (y == 63)
-                    blocks[x][y][z] = BlockID::GRASS;
-                else
-                    blocks[x][y][z] = BlockID::AIR;
+                if (y == 0) {
+                    blocks[x][y][z] = BlockID::STONE; // Bedrock layer at the very bottom
+                }
+                else if (y < surfaceHeight - 3) {
+                    blocks[x][y][z] = BlockID::STONE; // Deep underground stone core
+                }
+                else if (y < surfaceHeight) {
+                    blocks[x][y][z] = BlockID::DIRT;  // 3-block dirt sublayer
+                }
+                else if (y == surfaceHeight) {
+                    blocks[x][y][z] = BlockID::GRASS; // Surface grass cap
+                }
+                else {
+                    blocks[x][y][z] = BlockID::AIR;   // Open atmosphere above ground
+                }
             }
         }
     }
@@ -22,7 +37,7 @@ Chunk::Chunk() {
 
 BlockID Chunk::GetBlock(int x, int y, int z) const {
     if (x < 0 || x >= CHUNK_WIDTH || y < 0 || y >= CHUNK_HEIGHT || z < 0 || z >= CHUNK_DEPTH)
-        return BlockID::AIR; // Out-of-bounds acts as open air
+        return BlockID::AIR;
     return blocks[x][y][z];
 }
 
@@ -93,12 +108,12 @@ std::vector<float> Chunk::GenerateMesh() const {
                 // 4. Bottom Face (-Y)
                 if (!isSolid(GetBlock(x, y - 1, z))) {
                     float faceVerts[] = {
-                        x - 0.5f,  y - 0.5f,  z + 0.5f,  0.4f,  b.uMax, b.vMax, 0.0f,
-                        x - 0.5f,  y - 0.5f,  z - 0.5f,  0.4f,  b.uMax, b.vMin, 0.0f,
-                        x + 0.5f,  y - 0.5f,  z - 0.5f,  0.4f,  b.uMin, b.vMin, 0.0f,
-                        x + 0.5f,  y - 0.5f,  z - 0.5f,  0.4f,  b.uMin, b.vMin, 0.0f,
-                        x + 0.5f,  y - 0.5f,  z + 0.5f,  0.4f,  b.uMin, b.vMax, 0.0f,
-                        x - 0.5f,  y - 0.5f,  z + 0.5f,  0.4f,  b.uMax, b.vMax, 0.0f
+                        x + 0.5f,  y - 0.5f,  z + 0.5f,  0.4f,  b.uMax, b.vMax, 0.0f,
+                        x + 0.5f,  y - 0.5f,  z - 0.5f,  0.4f,  b.uMax, b.vMin, 0.0f,
+                        x - 0.5f,  y - 0.5f,  z - 0.5f,  0.4f,  b.uMin, b.vMin, 0.0f,
+                        x - 0.5f,  y - 0.5f,  z - 0.5f,  0.4f,  b.uMin, b.vMin, 0.0f,
+                        x - 0.5f,  y - 0.5f,  z + 0.5f,  0.4f,  b.uMin, b.vMax, 0.0f,
+                        x + 0.5f,  y - 0.5f,  z + 0.5f,  0.4f,  b.uMax, b.vMax, 0.0f
                     };
                     vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
                 }
@@ -119,12 +134,12 @@ std::vector<float> Chunk::GenerateMesh() const {
                 // 6. Back Face (-Z)
                 if (!isSolid(GetBlock(x, y, z - 1))) {
                     float faceVerts[] = {
-                        x + 0.5f,  y + 0.5f,  z - 0.5f,  0.8f,  s.uMin, s.vMax, 0.0f,
-                        x + 0.5f,  y - 0.5f,  z - 0.5f,  0.8f,  s.uMin, s.vMin, 0.0f,
-                        x - 0.5f,  y - 0.5f,  z - 0.5f,  0.8f,  s.uMax, s.vMin, 0.0f,
-                        x - 0.5f,  y - 0.5f,  z - 0.5f,  0.8f,  s.uMax, s.vMin, 0.0f,
-                        x - 0.5f,  y + 0.5f,  z - 0.5f,  0.8f,  s.uMax, s.vMax, 0.0f,
-                        x + 0.5f,  y + 0.5f,  z - 0.5f,  0.8f,  s.uMin, s.vMax, 0.0f
+                        x + 0.5f,  y + 0.5f,  z - 0.5f,  0.8f,  s.uMax, s.vMax, 0.0f,
+                        x + 0.5f,  y - 0.5f,  z - 0.5f,  0.8f,  s.uMax, s.vMin, 0.0f,
+                        x - 0.5f,  y - 0.5f,  z - 0.5f,  0.8f,  s.uMin, s.vMin, 0.0f,
+                        x - 0.5f,  y - 0.5f,  z - 0.5f,  0.8f,  s.uMin, s.vMin, 0.0f,
+                        x - 0.5f,  y + 0.5f,  z - 0.5f,  0.8f,  s.uMin, s.vMax, 0.0f,
+                        x + 0.5f,  y + 0.5f,  z - 0.5f,  0.8f,  s.uMax, s.vMax, 0.0f
                     };
                     vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
                 }

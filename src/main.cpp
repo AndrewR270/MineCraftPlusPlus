@@ -92,7 +92,7 @@ int main() {
 
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
-    Camera camera(glm::vec3(0.0f, 0.0f, 20.0f)); // Positioned above terrain looking down
+    Camera camera(glm::vec3(8.0f, 85.0f, 25.0f)); // Positioned above terrain looking down
 
     // Performance tracking variables
     float lastTime = static_cast<float>(glfwGetTime());
