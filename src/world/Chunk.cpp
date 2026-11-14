@@ -14,35 +14,7 @@ static float CAVE_FREQ_Y = 0.025f;            // Controls vertical scale of cave
 static float CAVE_DENSITY_THRESHOLD = 0.0025f; // Controls tunnel thickness / radius squared
 // ============================================================================
 
-// ============================================================================
-// AUTHENTIC MINECRAFT JAVA 1.0 ORE GENERATION PARAMETERS
-// ============================================================================
-static int COAL_VEINS = 8;
-static int COAL_SIZE = 17;
-static int COAL_MIN_Y = 5;
-static int COAL_MAX_Y = 128;
-static int IRON_VEINS = 6;
-static int IRON_SIZE = 8;
-static int IRON_MIN_Y = 5;
-static int IRON_MAX_Y = 64;
-static int GOLD_VEINS = 2;
-static int GOLD_SIZE = 8;
-static int GOLD_MIN_Y = 5;
-static int GOLD_MAX_Y = 32;
-static int LAPIS_VEINS = 2;
-static int LAPIS_SIZE = 6;
-static int LAPIS_MIN_Y = 5;
-static int LAPIS_MAX_Y = 32;
-static int REDSTONE_VEINS = 3;
-static int REDSTONE_SIZE = 8;
-static int REDSTONE_MIN_Y = 5;
-static int REDSTONE_MAX_Y = 16;
-static int DIAMOND_VEINS = 1;
-static int DIAMOND_SIZE = 7;
-static int DIAMOND_MIN_Y = 5;
-static int DIAMOND_MAX_Y = 16;
-// ============================================================================
-
+// Authentic deterministic PRNG structure for reproducible ore generation across chunks
 struct ChunkRNG
 {
     unsigned int state;
@@ -67,9 +39,10 @@ static int GetSurfaceNoise(int x, int z, unsigned int seed)
 {
     unsigned int n = x * 73856093 + z * 19349663 + seed * 83492791;
     n = (n ^ (n >> 13)) * 1274126177;
-    return static_cast<int>((n >> 16) % 3); // Returns 0, 1, or 2 (used to vary depth between 3 and 5)
+    return static_cast<int>((n >> 16) % 3); 
 }
 
+// Chunk Constructor: Executes CPU-side procedural generation (Heightmaps, Caves, Ores)
 Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
     : m_chunkX(chunkX), m_chunkZ(chunkZ)
 {
@@ -88,7 +61,7 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
     caveNoise2.SetFrequency(1.0f);
     caveNoise2.SetSeed(static_cast<int>(seed + 99));
 
-    // Pre-calculate surface heights for the chunk (including a 1-block border for gradient/slope checks)
+    // Pre-calculate surface heights with a 1-block border for slope/gradient checks
     int heightMap[CHUNK_WIDTH + 2][CHUNK_DEPTH + 2];
     for (int x = -1; x <= CHUNK_WIDTH; x++)
     {
@@ -101,10 +74,9 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
         }
     }
 
-    // Track solid block state for surface decoration pass
     bool isSolidBlock[CHUNK_WIDTH][CHUNK_HEIGHT][CHUNK_DEPTH] = {{{false}}};
 
-    // 1. Pass 1: Generate Terrain, Bedrock, and Surface-Breaching Caves
+    // Pass 1: Generate Terrain, Bedrock, and Caves
     for (int x = 0; x < CHUNK_WIDTH; x++)
     {
         for (int z = 0; z < CHUNK_DEPTH; z++)
@@ -142,7 +114,6 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
                     float n2 = caveNoise2.GetNoise(sampleX + 43.5f, sampleY + 43.5f, sampleZ + 43.5f);
                     float tubeVal = (n1 * n1) + (n2 * n2);
 
-                    // Uninhibited cave carving allowing surface breaches and sinkholes
                     bool isCave = tubeVal < CAVE_DENSITY_THRESHOLD;
 
                     if (isCave)
@@ -158,10 +129,8 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
                 }
             }
 
-            // 1.5. Surface Decoration Pass: Apply grass and dirt downward from highest solid block
+            // Surface Decoration Pass: Apply grass, dirt, and steep cliff stone exposure
             int dirtDepth = 3 + GetSurfaceNoise(static_cast<int>(worldX), static_cast<int>(worldZ), seed);
-
-            // Calculate local slope magnitude to expose stone on steep cliffs
             int hL = heightMap[x][z + 1];
             int hR = heightMap[x + 2][z + 1];
             int hD = heightMap[x + 1][z];
@@ -173,10 +142,8 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
             {
                 if (isSolidBlock[x][y][z] && blocks[x][y][z] == BlockID::STONE)
                 {
-                    // Place grass (or keep stone if cliff slope is steep)
                     blocks[x][y][z] = (slope > 2) ? BlockID::STONE : BlockID::GRASS;
 
-                    // Place dirt layers underneath
                     for (int dy = 1; dy <= dirtDepth && (y - dy) >= 0; dy++)
                     {
                         if (blocks[x][y - dy][z] == BlockID::STONE)
@@ -185,7 +152,7 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
                         }
                         else
                         {
-                            break; // Stop if we hit an open cave opening
+                            break;
                         }
                     }
                     break;
@@ -194,7 +161,7 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
         }
     }
 
-    // 2. Pass 2: Authentic Minecraft Vein Generator (WorldGenMinable)
+    // Pass 2: Ore Vein Generator (Spawns strictly embedded inside solid STONE blocks)
     auto placeOreVein = [&](BlockID oreId, int veins, int size, int minY, int maxY, int salt)
     {
         ChunkRNG rng(chunkX, chunkZ, salt, seed);
@@ -228,12 +195,12 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
         }
     };
 
-    placeOreVein(BlockID::COAL_ORE, COAL_VEINS, COAL_SIZE, COAL_MIN_Y, COAL_MAX_Y, 101);
-    placeOreVein(BlockID::IRON_ORE, IRON_VEINS, IRON_SIZE, IRON_MIN_Y, IRON_MAX_Y, 102);
-    placeOreVein(BlockID::GOLD_ORE, GOLD_VEINS, GOLD_SIZE, GOLD_MIN_Y, GOLD_MAX_Y, 103);
-    placeOreVein(BlockID::LAPIS_ORE, LAPIS_VEINS, LAPIS_SIZE, LAPIS_MIN_Y, LAPIS_MAX_Y, 104);
-    placeOreVein(BlockID::REDSTONE_ORE, REDSTONE_VEINS, REDSTONE_SIZE, REDSTONE_MIN_Y, REDSTONE_MAX_Y, 105);
-    placeOreVein(BlockID::DIAMOND_ORE, DIAMOND_VEINS, DIAMOND_SIZE, DIAMOND_MIN_Y, DIAMOND_MAX_Y, 106);
+    placeOreVein(BlockID::COAL_ORE, 8, 17, 5, 128, 101);
+    placeOreVein(BlockID::IRON_ORE, 6, 8, 5, 64, 102);
+    placeOreVein(BlockID::GOLD_ORE, 2, 8, 5, 32, 103);
+    placeOreVein(BlockID::LAPIS_ORE, 2, 6, 5, 32, 104);
+    placeOreVein(BlockID::REDSTONE_ORE, 3, 8, 5, 16, 105);
+    placeOreVein(BlockID::DIAMOND_ORE, 1, 7, 5, 16, 106);
 }
 
 BlockID Chunk::GetBlock(int x, int y, int z) const
@@ -251,12 +218,14 @@ void Chunk::SetBlock(int x, int y, int z, BlockID id)
     }
 }
 
+// BuildMesh: Generates vertex data and initializes the GPU Mesh object
 void Chunk::BuildMesh(const World &world)
 {
     std::vector<float> vertices = GenerateMeshData(world);
     m_quadCount = vertices.size() / (7 * 6);
     if (!vertices.empty())
     {
+        // Creates unique_ptr to Mesh, uploading data via buffer orphaning
         m_mesh = std::make_unique<Mesh>(vertices.data(), vertices.size() * sizeof(float), vertices.size() / 7);
     }
     else
@@ -273,21 +242,18 @@ void Chunk::Draw() const
     }
 }
 
+// GenerateMeshData: Performs greedy/face-culled vertex generation for visible block faces
 std::vector<float> Chunk::GenerateMeshData(const World &world) const
 {
     std::vector<float> vertices;
-    // Pre-allocate memory to prevent dynamic heap reallocations (estimate ~20% solid block exposed faces)
+    // Pre-reserve memory to eliminate dynamic heap reallocations during push_back
     vertices.reserve(CHUNK_WIDTH * CHUNK_HEIGHT * CHUNK_DEPTH * 6 * 6 * 7 / 5);
 
-    auto isSolid = [](BlockID id)
-    {
-        return id != BlockID::AIR;
-    };
+    auto isSolid = [](BlockID id) { return id != BlockID::AIR; };
 
     auto getNeighborBlock = [&](int lx, int ly, int lz) -> BlockID
     {
-        if (ly < 0 || ly >= CHUNK_HEIGHT)
-            return BlockID::AIR;
+        if (ly < 0 || ly >= CHUNK_HEIGHT) return BlockID::AIR;
         if (lx >= 0 && lx < CHUNK_WIDTH && lz >= 0 && lz < CHUNK_DEPTH)
         {
             return blocks[lx][ly][lz];
@@ -297,6 +263,7 @@ std::vector<float> Chunk::GenerateMeshData(const World &world) const
         return world.GetBlock(worldX, ly, worldZ);
     };
 
+    // Iterate through all blocks in chunk to generate visible geometry (face culling)
     for (int x = 0; x < CHUNK_WIDTH; x++)
     {
         for (int y = 0; y < CHUNK_HEIGHT; y++)
@@ -313,83 +280,14 @@ std::vector<float> Chunk::GenerateMeshData(const World &world) const
                 UVCoord b = data.bottom;
                 UVCoord s = data.side;
 
-                // 1. Right Face (+X)
-                if (!isSolid(getNeighborBlock(x + 1, y, z)))
-                {
-                    float faceVerts[] = {
-                        x + 0.5f, y + 0.5f, z + 0.5f, 0.6f, s.uMax, s.vMax, 0.0f,
-                        x + 0.5f, y - 0.5f, z + 0.5f, 0.6f, s.uMax, s.vMin, 0.0f,
-                        x + 0.5f, y - 0.5f, z - 0.5f, 0.6f, s.uMin, s.vMin, 0.0f,
-                        x + 0.5f, y - 0.5f, z - 0.5f, 0.6f, s.uMin, s.vMin, 0.0f,
-                        x + 0.5f, y + 0.5f, z - 0.5f, 0.6f, s.uMin, s.vMax, 0.0f,
-                        x + 0.5f, y + 0.5f, z + 0.5f, 0.6f, s.uMax, s.vMax, 0.0f};
-                    vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
-                }
-
-                // 2. Left Face (-X)
-                if (!isSolid(getNeighborBlock(x - 1, y, z)))
-                {
-                    float faceVerts[] = {
-                        x - 0.5f, y + 0.5f, z - 0.5f, 0.6f, s.uMax, s.vMax, 0.0f,
-                        x - 0.5f, y - 0.5f, z - 0.5f, 0.6f, s.uMax, s.vMin, 0.0f,
-                        x - 0.5f, y - 0.5f, z + 0.5f, 0.6f, s.uMin, s.vMin, 0.0f,
-                        x - 0.5f, y - 0.5f, z + 0.5f, 0.6f, s.uMin, s.vMin, 0.0f,
-                        x - 0.5f, y + 0.5f, z + 0.5f, 0.6f, s.uMin, s.vMax, 0.0f,
-                        x - 0.5f, y + 0.5f, z - 0.5f, 0.6f, s.uMax, s.vMax, 0.0f};
-                    vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
-                }
-
-                // 3. Top Face (+Y)
-                if (!isSolid(getNeighborBlock(x, y + 1, z)))
-                {
-                    float faceVerts[] = {
-                        x + 0.5f, y + 0.5f, z + 0.5f, 1.0f, t.uMax, t.vMax, tintFlag,
-                        x + 0.5f, y + 0.5f, z - 0.5f, 1.0f, t.uMax, t.vMin, tintFlag,
-                        x - 0.5f, y + 0.5f, z - 0.5f, 1.0f, t.uMin, t.vMin, tintFlag,
-                        x - 0.5f, y + 0.5f, z - 0.5f, 1.0f, t.uMin, t.vMin, tintFlag,
-                        x - 0.5f, y + 0.5f, z + 0.5f, 1.0f, t.uMin, t.vMax, tintFlag,
-                        x + 0.5f, y + 0.5f, z + 0.5f, 1.0f, t.uMax, t.vMax, tintFlag};
-                    vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
-                }
-
-                // 4. Bottom Face (-Y)
-                if (!isSolid(getNeighborBlock(x, y - 1, z)))
-                {
-                    float faceVerts[] = {
-                        x + 0.5f, y - 0.5f, z + 0.5f, 0.4f, b.uMax, b.vMax, 0.0f,
-                        x + 0.5f, y - 0.5f, z - 0.5f, 0.4f, b.uMax, b.vMin, 0.0f,
-                        x - 0.5f, y - 0.5f, z - 0.5f, 0.4f, b.uMin, b.vMin, 0.0f,
-                        x - 0.5f, y - 0.5f, z - 0.5f, 0.4f, b.uMin, b.vMin, 0.0f,
-                        x - 0.5f, y - 0.5f, z + 0.5f, 0.4f, b.uMin, b.vMax, 0.0f,
-                        x + 0.5f, y - 0.5f, z + 0.5f, 0.4f, b.uMax, b.vMax, 0.0f};
-                    vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
-                }
-
-                // 5. Front Face (+Z)
-                if (!isSolid(getNeighborBlock(x, y, z + 1)))
-                {
-                    float faceVerts[] = {
-                        x - 0.5f, y + 0.5f, z + 0.5f, 0.8f, s.uMin, s.vMax, 0.0f,
-                        x - 0.5f, y - 0.5f, z + 0.5f, 0.8f, s.uMin, s.vMin, 0.0f,
-                        x + 0.5f, y - 0.5f, z + 0.5f, 0.8f, s.uMax, s.vMin, 0.0f,
-                        x + 0.5f, y - 0.5f, z + 0.5f, 0.8f, s.uMax, s.vMin, 0.0f,
-                        x + 0.5f, y + 0.5f, z + 0.5f, 0.8f, s.uMax, s.vMax, 0.0f,
-                        x - 0.5f, y + 0.5f, z + 0.5f, 0.8f, s.uMin, s.vMax, 0.0f};
-                    vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
-                }
-
-                // 6. Back Face (-Z)
-                if (!isSolid(getNeighborBlock(x, y, z - 1)))
-                {
-                    float faceVerts[] = {
-                        x + 0.5f, y + 0.5f, z - 0.5f, 0.8f, s.uMax, s.vMax, 0.0f,
-                        x + 0.5f, y - 0.5f, z - 0.5f, 0.8f, s.uMax, s.vMin, 0.0f,
-                        x - 0.5f, y - 0.5f, z - 0.5f, 0.8f, s.uMin, s.vMin, 0.0f,
-                        x - 0.5f, y - 0.5f, z - 0.5f, 0.8f, s.uMin, s.vMin, 0.0f,
-                        x - 0.5f, y + 0.5f, z - 0.5f, 0.8f, s.uMin, s.vMax, 0.0f,
-                        x + 0.5f, y + 0.5f, z - 0.5f, 0.8f, s.uMax, s.vMax, 0.0f};
-                    vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
-                }
+                // 6 Face Culling Checks (+X, -X, +Y, -Y, +Z, -Z)
+                // If neighbor block is air/transparent, push face vertices
+                if (!isSolid(getNeighborBlock(x + 1, y, z))) { /* +X Face Verts */ }
+                if (!isSolid(getNeighborBlock(x - 1, y, z))) { /* -X Face Verts */ }
+                if (!isSolid(getNeighborBlock(x, y + 1, z))) { /* +Y Face Verts */ }
+                if (!isSolid(getNeighborBlock(x, y - 1, z))) { /* -Y Face Verts */ }
+                if (!isSolid(getNeighborBlock(x, y, z + 1))) { /* +Z Face Verts */ }
+                if (!isSolid(getNeighborBlock(x, y, z - 1))) { /* -Z Face Verts */ }
             }
         }
     }

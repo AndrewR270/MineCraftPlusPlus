@@ -20,11 +20,13 @@ float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
 
+// Window resize viewport callback
 void framebuffer_size_callback(GLFWwindow *window, int width, int height)
 {
     glViewport(0, 0, width, height);
 }
 
+// Mouse movement callback for free-cam looking
 void mouse_callback(GLFWwindow *window, double xposIn, double yposIn)
 {
     float xpos = static_cast<float>(xposIn);
@@ -38,7 +40,7 @@ void mouse_callback(GLFWwindow *window, double xposIn, double yposIn)
     }
 
     float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos;
+    float yoffset = lastY - ypos; // Reversed since y-coordinates go from bottom to top
     lastX = xpos;
     lastY = ypos;
 
@@ -76,6 +78,7 @@ int main()
     }
     glfwMakeContextCurrent(window);
 
+    // Disable V-Sync (0) to unlock frame rates for benchmarking
     glfwSwapInterval(0);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
@@ -89,11 +92,13 @@ int main()
 
     Shader ourShader("shaders/vertex.vs", "shaders/fragment.fs");
 
+    // Initialize world seed using current system time
     unsigned int worldSeed = static_cast<unsigned int>(time(nullptr));
     srand(worldSeed);
 
     World world(worldSeed);
 
+    // Load texture atlas
     Texture terrainAtlas("assets/textures/textures.png");
     ourShader.use();
     ourShader.setInt("texture1", 0);
@@ -102,11 +107,11 @@ int main()
     float lastFrame = 0.0f;
     Camera camera(glm::vec3(8.0f, 85.0f, 25.0f));
 
-    // 1. Calculate initial player chunk coordinates
+    // 1. Calculate initial player chunk coordinates from starting position
     int pChunkX = (camera.Position.x >= 0) ? (static_cast<int>(camera.Position.x) / CHUNK_WIDTH) : ((static_cast<int>(camera.Position.x) - CHUNK_WIDTH + 1) / CHUNK_WIDTH);
     int pChunkZ = (camera.Position.z >= 0) ? (static_cast<int>(camera.Position.z) / CHUNK_DEPTH) : ((static_cast<int>(camera.Position.z) - CHUNK_DEPTH + 1) / CHUNK_DEPTH);
 
-    // 2. Preload initial chunks and drain queues fully so frame 1 is completely rendered
+    // 2. Preload initial chunks (radius 4) and drain queues fully so frame 1 renders instantly
     world.UpdateStreaming(pChunkX, pChunkZ, 4);
     world.ProcessQueues(99999.0, 99999.0);
 
@@ -122,6 +127,7 @@ int main()
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
+    // Main Game Render Loop
     while (!glfwWindowShouldClose(window))
     {
         float currentFrame = static_cast<float>(glfwGetTime());
@@ -130,6 +136,7 @@ int main()
 
         totalFramesRendered++;
 
+        // Sprint mechanic: Scale movement velocity if Left Control is held
         float velocityMultiplier = 2.0f;
         if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
         {
@@ -137,6 +144,7 @@ int main()
         }
         float currentDeltaTime = deltaTime * velocityMultiplier;
 
+        // Keyboard movement inputs
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
             camera.ProcessKeyboard(FORWARD, currentDeltaTime);
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
@@ -156,10 +164,11 @@ int main()
         int currentChunkX = (camera.Position.x >= 0) ? (static_cast<int>(camera.Position.x) / CHUNK_WIDTH) : ((static_cast<int>(camera.Position.x) - CHUNK_WIDTH + 1) / CHUNK_WIDTH);
         int currentChunkZ = (camera.Position.z >= 0) ? (static_cast<int>(camera.Position.z) / CHUNK_DEPTH) : ((static_cast<int>(camera.Position.z) - CHUNK_DEPTH + 1) / CHUNK_DEPTH);
 
-        // 4. Update streaming with live coordinates and budget queue processing
+        // 4. Update streaming with live coordinates and execute time-budgeted queue processing (1.5ms limit)
         world.UpdateStreaming(currentChunkX, currentChunkZ, 10);
         world.ProcessQueues(1.5, 1.5);
 
+        // Update live window title FPS counter every 1 second
         nbFrames++;
         if (currentFrame - lastTime >= 1.0f)
         {
@@ -173,7 +182,6 @@ int main()
             lastTime = currentFrame;
         }
 
-    
         glClearColor(0.6f, 0.7f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -183,16 +191,19 @@ int main()
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 500.0f);
         glm::mat4 view = camera.GetViewMatrix();
 
+        // Update camera frustum planes for culling
         camFrustum.Update(projection * view);
 
         ourShader.setMat4("projection", projection);
         ourShader.setMat4("view", view);
 
+        // Render visible chunks within the camera's view frustum
         for (const auto &[coord, chunk] : world.GetLoadedChunks())
         {
             glm::vec3 minBounds(coord.first * CHUNK_WIDTH, 0.0f, coord.second * CHUNK_DEPTH);
             glm::vec3 maxBounds((coord.first + 1) * CHUNK_WIDTH, static_cast<float>(CHUNK_HEIGHT), (coord.second + 1) * CHUNK_DEPTH);
 
+            // Frustum Culling: Skip rendering chunks outside the player's view
             if (!camFrustum.IsBoxVisible(minBounds, maxBounds))
             {
                 continue;
