@@ -26,3 +26,24 @@ static float CAVE_FREQ_XZ             = 0.015f;  // Controls horizontal scale an
 static float CAVE_FREQ_Y              = 0.025f;  // Controls vertical scale of caves
 static float CAVE_DENSITY_THRESHOLD   = 0.005f;  // Controls tunnel thickness / radius squared
 static int   SURFACE_BUFFER           = 20;      // Solid stone buffer beneath dirt to dome cave ceilings
+
+
+### How to Fix It
+
+To resolve the mismatch and fully integrate streaming hysteresis, update `World.h` and `World.cpp` to support the 4-argument signature.
+
+
+<Step subtitle="Verification" title="Recompile and Run">
+Clean and recompile your project. 
+*Verification:* Launch the engine. Frame 1 will render the initial chunks instantly, and walking around will smoothly stream new chunks in concentric radial circles without compiler errors or empty voids.
+</Step>
+</Steps>
+
+---
+
+<ElicitationsGroup message="If you run into any further compiler warnings or build issues:">
+  <Elicitation label="Check CMake or build flags" query="How do I configure CMake to catch signature mismatches and undefined references automatically?"/>
+  <Elicitation label="Verify header inclusions" query="Which headers need to be included in World.h for unordered_set and vector?"/>
+</ElicitationsGroup>
+
+<FollowUp label="Want me to review the rest of your World class methods to ensure complete consistency?" query="Yes, review all methods in World.h and World.cpp for consistency and best practices."/>

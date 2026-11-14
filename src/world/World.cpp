@@ -35,34 +35,31 @@ void World::LoadArea(int centerChunkX, int centerChunkZ, int radius) {
 }
 
 // UpdateStreaming: Handles dynamic chunk loading/unloading based on player position
-void World::UpdateStreaming(int playerChunkX, int playerChunkZ, int renderDistance) {
+void World::UpdateStreaming(int playerChunkX, int playerChunkZ, int loadRadius, int unloadRadius) {
     std::vector<std::pair<int, int>> toUnload;
 
-    // 1. Identify chunks outside render distance for garbage collection
+    // 1. Unload chunks exceeding the wider UNLOAD radius
     for (const auto& [coord, chunk] : m_chunks) {
         int cx = coord.first;
         int cz = coord.second;
-        if (std::abs(cx - playerChunkX) > renderDistance || std::abs(cz - playerChunkZ) > renderDistance) {
+        if (std::abs(cx - playerChunkX) > unloadRadius || std::abs(cz - playerChunkZ) > unloadRadius) {
             toUnload.push_back(coord);
         }
     }
 
-    // Erase distant chunks (RAII automatically frees Chunk memory and GPU buffers via destructors)
     for (const auto& coord : toUnload) {
         m_chunks.erase(coord);
     }
 
-    // 2. Gather all missing chunks within render distance into a temporary vector
+    // 2. Gather missing chunks within the LOAD radius
     std::vector<std::pair<int, int>> missingChunks;
-    for (int x = -renderDistance; x <= renderDistance; x++) {
-        for (int z = -renderDistance; z <= renderDistance; z++) {
+    for (int x = -loadRadius; x <= loadRadius; x++) {
+        for (int z = -loadRadius; z <= loadRadius; z++) {
             int cx = playerChunkX + x;
             int cz = playerChunkZ + z;
             std::pair<int, int> coord = {cx, cz};
 
-            // Enforce a circular render boundary (x^2 + z^2 <= r^2)
-            if (x * x + z * z <= renderDistance * renderDistance) {
-                // Check against loaded map and O(1) generating set to prevent duplicate queue work
+            if (x * x + z * z <= loadRadius * loadRadius) {
                 if (m_chunks.find(coord) == m_chunks.end() && m_generating.find(coord) == m_generating.end()) {
                     missingChunks.push_back(coord);
                 }
@@ -70,22 +67,13 @@ void World::UpdateStreaming(int playerChunkX, int playerChunkZ, int renderDistan
         }
     }
 
-    // ========================================================================
-    // ARCHITECTURAL CONCEPT: RADIAL DISTANCE PRIORITY SORTING
-    // ========================================================================
-    // WHY WE DO IT: Standard grid loops populate queues in row-major order, causing chunks 
-    // to load in irregular directions. This tears open visual voids that expose underground caves.
-    // HOW IT WORKS: We calculate Euclidean distance squared (`dx^2 + dz^2`) from the player 
-    // for each missing chunk and sort them ascending. This forces the engine to build 
-    // concentric outward circles, ensuring inner protective shells are built before outer rings.
-    // ========================================================================
+    // 3. Sort strictly by radial distance from the player
     std::sort(missingChunks.begin(), missingChunks.end(), [playerChunkX, playerChunkZ](const auto& a, const auto& b) {
         int distA = (a.first - playerChunkX) * (a.first - playerChunkX) + (a.second - playerChunkZ) * (a.second - playerChunkZ);
         int distB = (b.first - playerChunkX) * (b.first - playerChunkX) + (b.second - playerChunkZ) * (b.second - playerChunkZ);
-        return distA < distB; // Closest chunks processed first
+        return distA < distB;
     });
 
-    // 4. Push sorted chunks into the generation queue and O(1) tracking set
     for (const auto& coord : missingChunks) {
         m_generating.insert(coord);
         m_genQueue.push(coord);
@@ -112,20 +100,19 @@ void World::ProcessQueues(double maxGenTimeMs, double maxMeshTimeMs) {
         auto now = std::chrono::high_resolution_clock::now();
         double elapsedGen = std::chrono::duration<double, std::milli>(now - genStart).count();
         if (elapsedGen >= maxGenTimeMs) {
-            break; // Time budget exhausted for this frame; yield control!
+            break; 
         }
 
         m_genQueue.pop();
-        m_generating.erase(coord); // Remove from O(1) tracking set
+        m_generating.erase(coord);
 
-        // Verify chunk wasn't unloaded while sitting in queue
         if (m_chunks.find(coord) == m_chunks.end()) {
             m_chunks[coord] = std::make_unique<Chunk>(coord.first, coord.second, m_seed);
-            m_meshQueue.push(coord); // Forward generated chunk to mesh upload queue
+            m_meshQueue.push(coord);
         }
     }
 
-    // 2. Process Mesh Upload Queue (GPU VBO Uploads)
+    // 2. Process Mesh Upload Queue (Drains queue and builds GPU VBOs)
     auto meshStart = std::chrono::high_resolution_clock::now();
     while (!m_meshQueue.empty()) {
         auto coord = m_meshQueue.front();
@@ -139,13 +126,12 @@ void World::ProcessQueues(double maxGenTimeMs, double maxMeshTimeMs) {
         auto now = std::chrono::high_resolution_clock::now();
         double elapsedMesh = std::chrono::duration<double, std::milli>(now - meshStart).count();
         if (elapsedMesh >= maxMeshTimeMs) {
-            break; // Time budget exhausted for GPU uploads this frame
+            break; 
         }
 
         m_meshQueue.pop();
         chunk->BuildMesh(*this);
 
-        // Refresh immediate neighbor meshes so cross-chunk face culling updates correctly
         int cx = chunk->GetChunkX();
         int cz = chunk->GetChunkZ();
         if (Chunk* n = GetChunk(cx - 1, cz)) n->BuildMesh(*this);

@@ -24,7 +24,7 @@ public:
     ~World() = default;
 
     void LoadArea(int centerChunkX, int centerChunkZ, int radius);
-    void UpdateStreaming(int playerChunkX, int playerChunkZ, int renderDistance);
+    void UpdateStreaming(int playerChunkX, int playerChunkZ, int loadRadius, int unloadRadius);
     void ProcessQueues(double maxGenTimeMs, double maxMeshTimeMs);
 
     BlockID GetBlock(int x, int y, int z) const;

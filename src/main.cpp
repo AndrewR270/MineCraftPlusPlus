@@ -69,7 +69,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Minecraft Beta Engine - C++", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "MineCraftPlusPlus", NULL, NULL);
     if (window == NULL)
     {
         std::cerr << "Failed to create GLFW window" << std::endl;
@@ -112,7 +112,7 @@ int main()
     int pChunkZ = (camera.Position.z >= 0) ? (static_cast<int>(camera.Position.z) / CHUNK_DEPTH) : ((static_cast<int>(camera.Position.z) - CHUNK_DEPTH + 1) / CHUNK_DEPTH);
 
     // 2. Preload initial chunks (radius 4) and drain queues fully so frame 1 renders instantly
-    world.UpdateStreaming(pChunkX, pChunkZ, 4);
+    world.UpdateStreaming(pChunkX, pChunkZ, 4, 12);
     world.ProcessQueues(99999.0, 99999.0);
 
     Frustum camFrustum;
@@ -165,7 +165,7 @@ int main()
         int currentChunkZ = (camera.Position.z >= 0) ? (static_cast<int>(camera.Position.z) / CHUNK_DEPTH) : ((static_cast<int>(camera.Position.z) - CHUNK_DEPTH + 1) / CHUNK_DEPTH);
 
         // 4. Update streaming with live coordinates and execute time-budgeted queue processing (1.5ms limit)
-        world.UpdateStreaming(currentChunkX, currentChunkZ, 10);
+        world.UpdateStreaming(currentChunkX, currentChunkZ, 10, 12);
         world.ProcessQueues(1.5, 1.5);
 
         // Update live window title FPS counter every 1 second

@@ -280,14 +280,83 @@ std::vector<float> Chunk::GenerateMeshData(const World &world) const
                 UVCoord b = data.bottom;
                 UVCoord s = data.side;
 
-                // 6 Face Culling Checks (+X, -X, +Y, -Y, +Z, -Z)
-                // If neighbor block is air/transparent, push face vertices
-                if (!isSolid(getNeighborBlock(x + 1, y, z))) { /* +X Face Verts */ }
-                if (!isSolid(getNeighborBlock(x - 1, y, z))) { /* -X Face Verts */ }
-                if (!isSolid(getNeighborBlock(x, y + 1, z))) { /* +Y Face Verts */ }
-                if (!isSolid(getNeighborBlock(x, y - 1, z))) { /* -Y Face Verts */ }
-                if (!isSolid(getNeighborBlock(x, y, z + 1))) { /* +Z Face Verts */ }
-                if (!isSolid(getNeighborBlock(x, y, z - 1))) { /* -Z Face Verts */ }
+                // 1. Right Face (+X)
+                if (!isSolid(getNeighborBlock(x + 1, y, z)))
+                {
+                    float faceVerts[] = {
+                        x + 0.5f, y + 0.5f, z + 0.5f, 0.6f, s.uMax, s.vMax, 0.0f,
+                        x + 0.5f, y - 0.5f, z + 0.5f, 0.6f, s.uMax, s.vMin, 0.0f,
+                        x + 0.5f, y - 0.5f, z - 0.5f, 0.6f, s.uMin, s.vMin, 0.0f,
+                        x + 0.5f, y - 0.5f, z - 0.5f, 0.6f, s.uMin, s.vMin, 0.0f,
+                        x + 0.5f, y + 0.5f, z - 0.5f, 0.6f, s.uMin, s.vMax, 0.0f,
+                        x + 0.5f, y + 0.5f, z + 0.5f, 0.6f, s.uMax, s.vMax, 0.0f};
+                    vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
+                }
+
+                // 2. Left Face (-X)
+                if (!isSolid(getNeighborBlock(x - 1, y, z)))
+                {
+                    float faceVerts[] = {
+                        x - 0.5f, y + 0.5f, z - 0.5f, 0.6f, s.uMax, s.vMax, 0.0f,
+                        x - 0.5f, y - 0.5f, z - 0.5f, 0.6f, s.uMax, s.vMin, 0.0f,
+                        x - 0.5f, y - 0.5f, z + 0.5f, 0.6f, s.uMin, s.vMin, 0.0f,
+                        x - 0.5f, y - 0.5f, z + 0.5f, 0.6f, s.uMin, s.vMin, 0.0f,
+                        x - 0.5f, y + 0.5f, z + 0.5f, 0.6f, s.uMin, s.vMax, 0.0f,
+                        x - 0.5f, y + 0.5f, z - 0.5f, 0.6f, s.uMax, s.vMax, 0.0f};
+                    vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
+                }
+
+                // 3. Top Face (+Y)
+                if (!isSolid(getNeighborBlock(x, y + 1, z)))
+                {
+                    float faceVerts[] = {
+                        x + 0.5f, y + 0.5f, z + 0.5f, 1.0f, t.uMax, t.vMax, tintFlag,
+                        x + 0.5f, y + 0.5f, z - 0.5f, 1.0f, t.uMax, t.vMin, tintFlag,
+                        x - 0.5f, y + 0.5f, z - 0.5f, 1.0f, t.uMin, t.vMin, tintFlag,
+                        x - 0.5f, y + 0.5f, z - 0.5f, 1.0f, t.uMin, t.vMin, tintFlag,
+                        x - 0.5f, y + 0.5f, z + 0.5f, 1.0f, t.uMin, t.vMax, tintFlag,
+                        x + 0.5f, y + 0.5f, z + 0.5f, 1.0f, t.uMax, t.vMax, tintFlag};
+                    vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
+                }
+
+                // 4. Bottom Face (-Y)
+                if (!isSolid(getNeighborBlock(x, y - 1, z)))
+                {
+                    float faceVerts[] = {
+                        x + 0.5f, y - 0.5f, z + 0.5f, 0.4f, b.uMax, b.vMax, 0.0f,
+                        x + 0.5f, y - 0.5f, z - 0.5f, 0.4f, b.uMax, b.vMin, 0.0f,
+                        x - 0.5f, y - 0.5f, z - 0.5f, 0.4f, b.uMin, b.vMin, 0.0f,
+                        x - 0.5f, y - 0.5f, z - 0.5f, 0.4f, b.uMin, b.vMin, 0.0f,
+                        x - 0.5f, y - 0.5f, z + 0.5f, 0.4f, b.uMin, b.vMax, 0.0f,
+                        x + 0.5f, y - 0.5f, z + 0.5f, 0.4f, b.uMax, b.vMax, 0.0f};
+                    vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
+                }
+
+                // 5. Front Face (+Z)
+                if (!isSolid(getNeighborBlock(x, y, z + 1)))
+                {
+                    float faceVerts[] = {
+                        x - 0.5f, y + 0.5f, z + 0.5f, 0.8f, s.uMin, s.vMax, 0.0f,
+                        x - 0.5f, y - 0.5f, z + 0.5f, 0.8f, s.uMin, s.vMin, 0.0f,
+                        x + 0.5f, y - 0.5f, z + 0.5f, 0.8f, s.uMax, s.vMin, 0.0f,
+                        x + 0.5f, y - 0.5f, z + 0.5f, 0.8f, s.uMax, s.vMin, 0.0f,
+                        x + 0.5f, y + 0.5f, z + 0.5f, 0.8f, s.uMax, s.vMax, 0.0f,
+                        x - 0.5f, y + 0.5f, z + 0.5f, 0.8f, s.uMin, s.vMax, 0.0f};
+                    vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
+                }
+
+                // 6. Back Face (-Z)
+                if (!isSolid(getNeighborBlock(x, y, z - 1)))
+                {
+                    float faceVerts[] = {
+                        x + 0.5f, y + 0.5f, z - 0.5f, 0.8f, s.uMax, s.vMax, 0.0f,
+                        x + 0.5f, y - 0.5f, z - 0.5f, 0.8f, s.uMax, s.vMin, 0.0f,
+                        x - 0.5f, y - 0.5f, z - 0.5f, 0.8f, s.uMin, s.vMin, 0.0f,
+                        x - 0.5f, y - 0.5f, z - 0.5f, 0.8f, s.uMin, s.vMin, 0.0f,
+                        x - 0.5f, y + 0.5f, z - 0.5f, 0.8f, s.uMin, s.vMax, 0.0f,
+                        x + 0.5f, y + 0.5f, z - 0.5f, 0.8f, s.uMax, s.vMax, 0.0f};
+                    vertices.insert(vertices.end(), std::begin(faceVerts), std::end(faceVerts));
+                }
             }
         }
     }
