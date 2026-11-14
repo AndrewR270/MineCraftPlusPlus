@@ -1,6 +1,8 @@
 #include "World.h"
 #include <cmath>
 #include <vector>
+#include <chrono>
+#include <algorithm> // Required for std::sort
 
 World::World(unsigned int seed) : m_seed(seed) {}
 
@@ -22,14 +24,13 @@ void World::LoadArea(int centerChunkX, int centerChunkZ, int radius) {
             int cz = centerChunkZ + z;
             std::pair<int, int> coord = {cx, cz};
 
-            if (m_chunks.find(coord) == m_chunks.end()) {
+            if (m_chunks.find(coord) == m_chunks.end() && m_generating.find(coord) == m_generating.end()) {
                 m_chunks[coord] = std::make_unique<Chunk>(cx, cz, m_seed);
                 m_meshQueue.push(coord);
             }
         }
     }
-    // Build all for initial load
-    ProcessMeshQueue(static_cast<int>(m_meshQueue.size()));
+    ProcessQueues(9999.0, 9999.0);
 }
 
 void World::UpdateStreaming(int playerChunkX, int playerChunkZ, int renderDistance) {
@@ -44,46 +45,90 @@ void World::UpdateStreaming(int playerChunkX, int playerChunkZ, int renderDistan
         }
     }
 
-    // Erase distant chunks from memory
     for (const auto& coord : toUnload) {
         m_chunks.erase(coord);
     }
 
-    // 2. Load missing chunk data instantly (fast CPU array allocation, no GPU stall)
+    // 2. Gather all missing chunks within render distance into a temporary vector
+    std::vector<std::pair<int, int>> missingChunks;
     for (int x = -renderDistance; x <= renderDistance; x++) {
         for (int z = -renderDistance; z <= renderDistance; z++) {
             int cx = playerChunkX + x;
             int cz = playerChunkZ + z;
             std::pair<int, int> coord = {cx, cz};
 
-            if (m_chunks.find(coord) == m_chunks.end()) {
-                m_chunks[coord] = std::make_unique<Chunk>(cx, cz, m_seed);
-                m_meshQueue.push(coord);
+            // Check if within circular radius (optional, but creates a true circular load boundary)
+            if (x * x + z * z <= renderDistance * renderDistance) {
+                if (m_chunks.find(coord) == m_chunks.end() && m_generating.find(coord) == m_generating.end()) {
+                    missingChunks.push_back(coord);
+                }
             }
         }
     }
+
+    // 3. Sort missing chunks strictly by radial distance from the player (closest first!)
+    std::sort(missingChunks.begin(), missingChunks.end(), [playerChunkX, playerChunkZ](const auto& a, const auto& b) {
+        int distA = (a.first - playerChunkX) * (a.first - playerChunkX) + (a.second - playerChunkZ) * (a.second - playerChunkZ);
+        int distB = (b.first - playerChunkX) * (b.first - playerChunkX) + (b.second - playerChunkZ) * (b.second - playerChunkZ);
+        return distA < distB; // Ascending order: closest chunks processed first
+    });
+
+    // 4. Push sorted chunks into the generation queue and tracking set
+    for (const auto& coord : missingChunks) {
+        m_generating.insert(coord);
+        m_genQueue.push(coord);
+    }
 }
 
-void World::ProcessMeshQueue(int maxChunksPerFrame) {
-    int processed = 0;
-    while (!m_meshQueue.empty() && processed < maxChunksPerFrame) {
-        auto coord = m_meshQueue.front();
-        m_meshQueue.pop();
+void World::ProcessQueues(double maxGenTimeMs, double maxMeshTimeMs) {
+    auto genStart = std::chrono::high_resolution_clock::now();
 
-        Chunk* chunk = GetChunk(coord.first, coord.second);
-        if (chunk) {
-            chunk->BuildMesh(*this);
+    // 1. Process Chunk Generation Queue
+    while (!m_genQueue.empty()) {
+        auto coord = m_genQueue.front();
 
-            int cx = chunk->GetChunkX();
-            int cz = chunk->GetChunkZ();
-
-            // Refresh adjacent neighbor meshes if needed for border culling
-            if (Chunk* n = GetChunk(cx - 1, cz)) n->BuildMesh(*this);
-            if (Chunk* n = GetChunk(cx + 1, cz)) n->BuildMesh(*this);
-            if (Chunk* n = GetChunk(cx, cz - 1)) n->BuildMesh(*this);
-            if (Chunk* n = GetChunk(cx, cz + 1)) n->BuildMesh(*this);
+        auto now = std::chrono::high_resolution_clock::now();
+        double elapsedGen = std::chrono::duration<double, std::milli>(now - genStart).count();
+        if (elapsedGen >= maxGenTimeMs) {
+            break; 
         }
-        processed++;
+
+        m_genQueue.pop();
+        m_generating.erase(coord);
+
+        // Only generate if it hasn't been unloaded in the meantime
+        if (m_chunks.find(coord) == m_chunks.end()) {
+            m_chunks[coord] = std::make_unique<Chunk>(coord.first, coord.second, m_seed);
+            m_meshQueue.push(coord);
+        }
+    }
+
+    // 2. Process Mesh Upload Queue
+    auto meshStart = std::chrono::high_resolution_clock::now();
+    while (!m_meshQueue.empty()) {
+        auto coord = m_meshQueue.front();
+        
+        Chunk* chunk = GetChunk(coord.first, coord.second);
+        if (!chunk) {
+            m_meshQueue.pop();
+            continue;
+        }
+
+        auto now = std::chrono::high_resolution_clock::now();
+        double elapsedMesh = std::chrono::duration<double, std::milli>(now - meshStart).count();
+        if (elapsedMesh >= maxMeshTimeMs) {
+            break; 
+        }
+
+        m_meshQueue.pop();
+        chunk->BuildMesh(*this);
+
+        int cx = chunk->GetChunkX();
+        int cz = chunk->GetChunkZ();
+        if (Chunk* n = GetChunk(cx - 1, cz)) n->BuildMesh(*this);
+        if (Chunk* n = GetChunk(cx + 1, cz)) n->BuildMesh(*this);
+        if (Chunk* n = GetChunk(cx, cz - 1)) n->BuildMesh(*this);
+        if (Chunk* n = GetChunk(cx, cz + 1)) n->BuildMesh(*this);
     }
 }
 

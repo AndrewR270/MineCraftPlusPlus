@@ -8,47 +8,71 @@
 // ============================================================================
 // WORLD & CAVE GENERATION TUNING PARAMETERS
 // ============================================================================
-static float WORLD_TERRAIN_FREQ       = 0.015f;  // Controls width of surface hills
-static float CAVE_FREQ_XZ             = 0.015f;  // Controls horizontal scale and winding frequency of caves
-static float CAVE_FREQ_Y              = 0.025f;  // Controls vertical scale of caves
-static float CAVE_DENSITY_THRESHOLD   = 0.005f;  // Controls tunnel thickness / radius squared
+static float WORLD_TERRAIN_FREQ = 0.015f;     // Controls width of surface hills
+static float CAVE_FREQ_XZ = 0.015f;           // Controls horizontal scale and winding frequency of caves
+static float CAVE_FREQ_Y = 0.025f;            // Controls vertical scale of caves
+static float CAVE_DENSITY_THRESHOLD = 0.0025f; // Controls tunnel thickness / radius squared
 // ============================================================================
 
 // ============================================================================
 // AUTHENTIC MINECRAFT JAVA 1.0 ORE GENERATION PARAMETERS
 // ============================================================================
-static int COAL_VEINS     = 8; static int COAL_SIZE     = 17; static int COAL_MIN_Y     = 5; static int COAL_MAX_Y     = 128;
-static int IRON_VEINS     = 6; static int IRON_SIZE     = 8;  static int IRON_MIN_Y     = 5; static int IRON_MAX_Y     = 64;
-static int GOLD_VEINS     = 2;  static int GOLD_SIZE     = 8;  static int GOLD_MIN_Y     = 5; static int GOLD_MAX_Y     = 32;
-static int LAPIS_VEINS    = 2;  static int LAPIS_SIZE    = 6;  static int LAPIS_MIN_Y    = 5; static int LAPIS_MAX_Y    = 32;
-static int REDSTONE_VEINS = 3;  static int REDSTONE_SIZE = 8;  static int REDSTONE_MIN_Y = 5; static int REDSTONE_MAX_Y = 16;
-static int DIAMOND_VEINS  = 1;  static int DIAMOND_SIZE  = 7;  static int DIAMOND_MIN_Y  = 5; static int DIAMOND_MAX_Y  = 16;
+static int COAL_VEINS = 8;
+static int COAL_SIZE = 17;
+static int COAL_MIN_Y = 5;
+static int COAL_MAX_Y = 128;
+static int IRON_VEINS = 6;
+static int IRON_SIZE = 8;
+static int IRON_MIN_Y = 5;
+static int IRON_MAX_Y = 64;
+static int GOLD_VEINS = 2;
+static int GOLD_SIZE = 8;
+static int GOLD_MIN_Y = 5;
+static int GOLD_MAX_Y = 32;
+static int LAPIS_VEINS = 2;
+static int LAPIS_SIZE = 6;
+static int LAPIS_MIN_Y = 5;
+static int LAPIS_MAX_Y = 32;
+static int REDSTONE_VEINS = 3;
+static int REDSTONE_SIZE = 8;
+static int REDSTONE_MIN_Y = 5;
+static int REDSTONE_MAX_Y = 16;
+static int DIAMOND_VEINS = 1;
+static int DIAMOND_SIZE = 7;
+static int DIAMOND_MIN_Y = 5;
+static int DIAMOND_MAX_Y = 16;
 // ============================================================================
 
-struct ChunkRNG {
+struct ChunkRNG
+{
     unsigned int state;
-    ChunkRNG(int cx, int cz, int salt, unsigned int worldSeed) {
+    ChunkRNG(int cx, int cz, int salt, unsigned int worldSeed)
+    {
         state = worldSeed ^ (cx * 73856093) ^ (cz * 19349663) ^ (salt * 83492791);
     }
-    int NextInt(int max) {
+    int NextInt(int max)
+    {
         state = state * 1103515245 + 12345;
         return static_cast<int>((state >> 16) % max);
     }
-    float NextFloat() {
+    float NextFloat()
+    {
         state = state * 1103515245 + 12345;
         return static_cast<float>((state >> 16) & 0xFFFF) / 65535.0f;
     }
 };
 
 // Deterministic hash for surface variation
-static int GetSurfaceNoise(int x, int z, unsigned int seed) {
+static int GetSurfaceNoise(int x, int z, unsigned int seed)
+{
     unsigned int n = x * 73856093 + z * 19349663 + seed * 83492791;
     n = (n ^ (n >> 13)) * 1274126177;
     return static_cast<int>((n >> 16) % 3); // Returns 0, 1, or 2 (used to vary depth between 3 and 5)
 }
 
 Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
-    : m_chunkX(chunkX), m_chunkZ(chunkZ) {
+    : m_chunkX(chunkX), m_chunkZ(chunkZ)
+{
     FastNoiseLite terrainNoise;
     terrainNoise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
     terrainNoise.SetFrequency(WORLD_TERRAIN_FREQ);
@@ -66,8 +90,10 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
 
     // Pre-calculate surface heights for the chunk (including a 1-block border for gradient/slope checks)
     int heightMap[CHUNK_WIDTH + 2][CHUNK_DEPTH + 2];
-    for (int x = -1; x <= CHUNK_WIDTH; x++) {
-        for (int z = -1; z <= CHUNK_DEPTH; z++) {
+    for (int x = -1; x <= CHUNK_WIDTH; x++)
+    {
+        for (int z = -1; z <= CHUNK_DEPTH; z++)
+        {
             float worldX = static_cast<float>(chunkX * CHUNK_WIDTH + x);
             float worldZ = static_cast<float>(chunkZ * CHUNK_DEPTH + z);
             float noiseVal = terrainNoise.GetNoise(worldX, worldZ);
@@ -79,28 +105,35 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
     bool isSolidBlock[CHUNK_WIDTH][CHUNK_HEIGHT][CHUNK_DEPTH] = {{{false}}};
 
     // 1. Pass 1: Generate Terrain, Bedrock, and Surface-Breaching Caves
-    for (int x = 0; x < CHUNK_WIDTH; x++) {
-        for (int z = 0; z < CHUNK_DEPTH; z++) {
+    for (int x = 0; x < CHUNK_WIDTH; x++)
+    {
+        for (int z = 0; z < CHUNK_DEPTH; z++)
+        {
             float worldX = static_cast<float>(chunkX * CHUNK_WIDTH + x);
             float worldZ = static_cast<float>(chunkZ * CHUNK_DEPTH + z);
 
             int surfaceHeight = heightMap[x + 1][z + 1];
 
-            for (int y = 0; y < CHUNK_HEIGHT; y++) {
-                if (y == 0) {
+            for (int y = 0; y < CHUNK_HEIGHT; y++)
+            {
+                if (y == 0)
+                {
                     blocks[x][y][z] = BlockID::BEDROCK;
                     isSolidBlock[x][y][z] = true;
                 }
-                else if (y < 5) {
+                else if (y < 5)
+                {
                     bool isBedrock = (rand() % (y + 1) == 0) || (y == 1);
                     blocks[x][y][z] = isBedrock ? BlockID::BEDROCK : BlockID::STONE;
                     isSolidBlock[x][y][z] = true;
                 }
-                else if (y > surfaceHeight + 6) {
+                else if (y > surfaceHeight + 6)
+                {
                     blocks[x][y][z] = BlockID::AIR;
                     isSolidBlock[x][y][z] = false;
                 }
-                else {
+                else
+                {
                     float sampleX = worldX * CAVE_FREQ_XZ;
                     float sampleY = static_cast<float>(y) * CAVE_FREQ_Y;
                     float sampleZ = worldZ * CAVE_FREQ_XZ;
@@ -112,10 +145,13 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
                     // Uninhibited cave carving allowing surface breaches and sinkholes
                     bool isCave = tubeVal < CAVE_DENSITY_THRESHOLD;
 
-                    if (isCave) {
+                    if (isCave)
+                    {
                         blocks[x][y][z] = BlockID::AIR;
                         isSolidBlock[x][y][z] = false;
-                    } else {
+                    }
+                    else
+                    {
                         blocks[x][y][z] = BlockID::STONE;
                         isSolidBlock[x][y][z] = true;
                     }
@@ -124,25 +160,31 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
 
             // 1.5. Surface Decoration Pass: Apply grass and dirt downward from highest solid block
             int dirtDepth = 3 + GetSurfaceNoise(static_cast<int>(worldX), static_cast<int>(worldZ), seed);
-            
+
             // Calculate local slope magnitude to expose stone on steep cliffs
             int hL = heightMap[x][z + 1];
             int hR = heightMap[x + 2][z + 1];
             int hD = heightMap[x + 1][z];
             int hU = heightMap[x + 1][z + 2];
-            int slope = std::max({std::abs(surfaceHeight - hL), std::abs(surfaceHeight - hR), 
+            int slope = std::max({std::abs(surfaceHeight - hL), std::abs(surfaceHeight - hR),
                                   std::abs(surfaceHeight - hD), std::abs(surfaceHeight - hU)});
 
-            for (int y = CHUNK_HEIGHT - 1; y >= 0; y--) {
-                if (isSolidBlock[x][y][z] && blocks[x][y][z] == BlockID::STONE) {
+            for (int y = CHUNK_HEIGHT - 1; y >= 0; y--)
+            {
+                if (isSolidBlock[x][y][z] && blocks[x][y][z] == BlockID::STONE)
+                {
                     // Place grass (or keep stone if cliff slope is steep)
                     blocks[x][y][z] = (slope > 2) ? BlockID::STONE : BlockID::GRASS;
 
                     // Place dirt layers underneath
-                    for (int dy = 1; dy <= dirtDepth && (y - dy) >= 0; dy++) {
-                        if (blocks[x][y - dy][z] == BlockID::STONE) {
+                    for (int dy = 1; dy <= dirtDepth && (y - dy) >= 0; dy++)
+                    {
+                        if (blocks[x][y - dy][z] == BlockID::STONE)
+                        {
                             blocks[x][y - dy][z] = (slope > 2) ? BlockID::STONE : BlockID::DIRT;
-                        } else {
+                        }
+                        else
+                        {
                             break; // Stop if we hit an open cave opening
                         }
                     }
@@ -153,14 +195,17 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
     }
 
     // 2. Pass 2: Authentic Minecraft Vein Generator (WorldGenMinable)
-    auto placeOreVein = [&](BlockID oreId, int veins, int size, int minY, int maxY, int salt) {
+    auto placeOreVein = [&](BlockID oreId, int veins, int size, int minY, int maxY, int salt)
+    {
         ChunkRNG rng(chunkX, chunkZ, salt, seed);
-        for (int i = 0; i < veins; i++) {
+        for (int i = 0; i < veins; i++)
+        {
             float xCoord = static_cast<float>(rng.NextInt(CHUNK_WIDTH));
             float yCoord = static_cast<float>(minY + rng.NextInt(maxY - minY));
             float zCoord = static_cast<float>(rng.NextInt(CHUNK_DEPTH));
 
-            for (int j = 0; j < size; j++) {
+            for (int j = 0; j < size; j++)
+            {
                 float angle1 = rng.NextFloat() * 3.14159f * 2.0f;
                 float yOffset = (rng.NextFloat() - 0.5f) * 2.0f;
 
@@ -172,8 +217,10 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
                 int by = static_cast<int>(roundf(yCoord));
                 int bz = static_cast<int>(roundf(zCoord));
 
-                if (bx >= 0 && bx < CHUNK_WIDTH && by >= minY && by < maxY && bz >= 0 && bz < CHUNK_DEPTH) {
-                    if (blocks[bx][by][bz] == BlockID::STONE) {
+                if (bx >= 0 && bx < CHUNK_WIDTH && by >= minY && by < maxY && bz >= 0 && bz < CHUNK_DEPTH)
+                {
+                    if (blocks[bx][by][bz] == BlockID::STONE)
+                    {
                         blocks[bx][by][bz] = oreId;
                     }
                 }
@@ -181,52 +228,68 @@ Chunk::Chunk(int chunkX, int chunkZ, unsigned int seed)
         }
     };
 
-    placeOreVein(BlockID::COAL_ORE,     COAL_VEINS,     COAL_SIZE,     COAL_MIN_Y,     COAL_MAX_Y,     101);
-    placeOreVein(BlockID::IRON_ORE,     IRON_VEINS,     IRON_SIZE,     IRON_MIN_Y,     IRON_MAX_Y,     102);
-    placeOreVein(BlockID::GOLD_ORE,     GOLD_VEINS,     GOLD_SIZE,     GOLD_MIN_Y,     GOLD_MAX_Y,     103);
-    placeOreVein(BlockID::LAPIS_ORE,    LAPIS_VEINS,    LAPIS_SIZE,    LAPIS_MIN_Y,    LAPIS_MAX_Y,    104);
+    placeOreVein(BlockID::COAL_ORE, COAL_VEINS, COAL_SIZE, COAL_MIN_Y, COAL_MAX_Y, 101);
+    placeOreVein(BlockID::IRON_ORE, IRON_VEINS, IRON_SIZE, IRON_MIN_Y, IRON_MAX_Y, 102);
+    placeOreVein(BlockID::GOLD_ORE, GOLD_VEINS, GOLD_SIZE, GOLD_MIN_Y, GOLD_MAX_Y, 103);
+    placeOreVein(BlockID::LAPIS_ORE, LAPIS_VEINS, LAPIS_SIZE, LAPIS_MIN_Y, LAPIS_MAX_Y, 104);
     placeOreVein(BlockID::REDSTONE_ORE, REDSTONE_VEINS, REDSTONE_SIZE, REDSTONE_MIN_Y, REDSTONE_MAX_Y, 105);
-    placeOreVein(BlockID::DIAMOND_ORE,  DIAMOND_VEINS,  DIAMOND_SIZE,  DIAMOND_MIN_Y,  DIAMOND_MAX_Y,  106);
+    placeOreVein(BlockID::DIAMOND_ORE, DIAMOND_VEINS, DIAMOND_SIZE, DIAMOND_MIN_Y, DIAMOND_MAX_Y, 106);
 }
 
-BlockID Chunk::GetBlock(int x, int y, int z) const {
+BlockID Chunk::GetBlock(int x, int y, int z) const
+{
     if (x < 0 || x >= CHUNK_WIDTH || y < 0 || y >= CHUNK_HEIGHT || z < 0 || z >= CHUNK_DEPTH)
         return BlockID::AIR;
     return blocks[x][y][z];
 }
 
-void Chunk::SetBlock(int x, int y, int z, BlockID id) {
-    if (x >= 0 && x < CHUNK_WIDTH && y >= 0 && y < CHUNK_HEIGHT && z >= 0 && z < CHUNK_DEPTH) {
+void Chunk::SetBlock(int x, int y, int z, BlockID id)
+{
+    if (x >= 0 && x < CHUNK_WIDTH && y >= 0 && y < CHUNK_HEIGHT && z >= 0 && z < CHUNK_DEPTH)
+    {
         blocks[x][y][z] = id;
     }
 }
 
-void Chunk::BuildMesh(const World& world) {
+void Chunk::BuildMesh(const World &world)
+{
     std::vector<float> vertices = GenerateMeshData(world);
     m_quadCount = vertices.size() / (7 * 6);
-    if (!vertices.empty()) {
+    if (!vertices.empty())
+    {
         m_mesh = std::make_unique<Mesh>(vertices.data(), vertices.size() * sizeof(float), vertices.size() / 7);
-    } else {
+    }
+    else
+    {
         m_mesh.reset();
     }
 }
 
-void Chunk::Draw() const {
-    if (m_mesh) {
+void Chunk::Draw() const
+{
+    if (m_mesh)
+    {
         m_mesh->Draw();
     }
 }
 
-std::vector<float> Chunk::GenerateMeshData(const World& world) const {
+std::vector<float> Chunk::GenerateMeshData(const World &world) const
+{
     std::vector<float> vertices;
+    // Pre-allocate memory to prevent dynamic heap reallocations (estimate ~20% solid block exposed faces)
+    vertices.reserve(CHUNK_WIDTH * CHUNK_HEIGHT * CHUNK_DEPTH * 6 * 6 * 7 / 5);
 
-    auto isSolid = [](BlockID id) {
+    auto isSolid = [](BlockID id)
+    {
         return id != BlockID::AIR;
     };
 
-    auto getNeighborBlock = [&](int lx, int ly, int lz) -> BlockID {
-        if (ly < 0 || ly >= CHUNK_HEIGHT) return BlockID::AIR;
-        if (lx >= 0 && lx < CHUNK_WIDTH && lz >= 0 && lz < CHUNK_DEPTH) {
+    auto getNeighborBlock = [&](int lx, int ly, int lz) -> BlockID
+    {
+        if (ly < 0 || ly >= CHUNK_HEIGHT)
+            return BlockID::AIR;
+        if (lx >= 0 && lx < CHUNK_WIDTH && lz >= 0 && lz < CHUNK_DEPTH)
+        {
             return blocks[lx][ly][lz];
         }
         int worldX = m_chunkX * CHUNK_WIDTH + lx;
@@ -234,9 +297,12 @@ std::vector<float> Chunk::GenerateMeshData(const World& world) const {
         return world.GetBlock(worldX, ly, worldZ);
     };
 
-    for (int x = 0; x < CHUNK_WIDTH; x++) {
-        for (int y = 0; y < CHUNK_HEIGHT; y++) {
-            for (int z = 0; z < CHUNK_DEPTH; z++) {
+    for (int x = 0; x < CHUNK_WIDTH; x++)
+    {
+        for (int y = 0; y < CHUNK_HEIGHT; y++)
+        {
+            for (int z = 0; z < CHUNK_DEPTH; z++)
+            {
                 BlockID currentId = blocks[x][y][z];
                 if (currentId == BlockID::AIR)
                     continue;
@@ -248,7 +314,8 @@ std::vector<float> Chunk::GenerateMeshData(const World& world) const {
                 UVCoord s = data.side;
 
                 // 1. Right Face (+X)
-                if (!isSolid(getNeighborBlock(x + 1, y, z))) {
+                if (!isSolid(getNeighborBlock(x + 1, y, z)))
+                {
                     float faceVerts[] = {
                         x + 0.5f, y + 0.5f, z + 0.5f, 0.6f, s.uMax, s.vMax, 0.0f,
                         x + 0.5f, y - 0.5f, z + 0.5f, 0.6f, s.uMax, s.vMin, 0.0f,
@@ -260,7 +327,8 @@ std::vector<float> Chunk::GenerateMeshData(const World& world) const {
                 }
 
                 // 2. Left Face (-X)
-                if (!isSolid(getNeighborBlock(x - 1, y, z))) {
+                if (!isSolid(getNeighborBlock(x - 1, y, z)))
+                {
                     float faceVerts[] = {
                         x - 0.5f, y + 0.5f, z - 0.5f, 0.6f, s.uMax, s.vMax, 0.0f,
                         x - 0.5f, y - 0.5f, z - 0.5f, 0.6f, s.uMax, s.vMin, 0.0f,
@@ -272,7 +340,8 @@ std::vector<float> Chunk::GenerateMeshData(const World& world) const {
                 }
 
                 // 3. Top Face (+Y)
-                if (!isSolid(getNeighborBlock(x, y + 1, z))) {
+                if (!isSolid(getNeighborBlock(x, y + 1, z)))
+                {
                     float faceVerts[] = {
                         x + 0.5f, y + 0.5f, z + 0.5f, 1.0f, t.uMax, t.vMax, tintFlag,
                         x + 0.5f, y + 0.5f, z - 0.5f, 1.0f, t.uMax, t.vMin, tintFlag,
@@ -284,7 +353,8 @@ std::vector<float> Chunk::GenerateMeshData(const World& world) const {
                 }
 
                 // 4. Bottom Face (-Y)
-                if (!isSolid(getNeighborBlock(x, y - 1, z))) {
+                if (!isSolid(getNeighborBlock(x, y - 1, z)))
+                {
                     float faceVerts[] = {
                         x + 0.5f, y - 0.5f, z + 0.5f, 0.4f, b.uMax, b.vMax, 0.0f,
                         x + 0.5f, y - 0.5f, z - 0.5f, 0.4f, b.uMax, b.vMin, 0.0f,
@@ -296,7 +366,8 @@ std::vector<float> Chunk::GenerateMeshData(const World& world) const {
                 }
 
                 // 5. Front Face (+Z)
-                if (!isSolid(getNeighborBlock(x, y, z + 1))) {
+                if (!isSolid(getNeighborBlock(x, y, z + 1)))
+                {
                     float faceVerts[] = {
                         x - 0.5f, y + 0.5f, z + 0.5f, 0.8f, s.uMin, s.vMax, 0.0f,
                         x - 0.5f, y - 0.5f, z + 0.5f, 0.8f, s.uMin, s.vMin, 0.0f,
@@ -308,7 +379,8 @@ std::vector<float> Chunk::GenerateMeshData(const World& world) const {
                 }
 
                 // 6. Back Face (-Z)
-                if (!isSolid(getNeighborBlock(x, y, z - 1))) {
+                if (!isSolid(getNeighborBlock(x, y, z - 1)))
+                {
                     float faceVerts[] = {
                         x + 0.5f, y + 0.5f, z - 0.5f, 0.8f, s.uMax, s.vMax, 0.0f,
                         x + 0.5f, y - 0.5f, z - 0.5f, 0.8f, s.uMax, s.vMin, 0.0f,

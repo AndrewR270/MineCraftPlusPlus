@@ -1,0 +1,24 @@
+CHUNKING & FACE CULLING 16x16x16
+
+No Chunk or Culling
+
+===============================
+   ENGINE PERFORMANCE SUMMARY  
+===============================
+Total Frames Rendered: 7052
+Session Duration:      44.9473 seconds
+Lifetime Average FPS:  156.895 FPS
+===============================
+
+Chunk & Culling
+
+=========================================
+   ENGINE BENCHMARK PERFORMANCE LOG     
+=========================================
+Total Frames Rendered: 57505
+Session Duration:      41.4103 s
+Lifetime Average FPS:  1388.66 FPS
+=========================================
+
+
+~850% improvement

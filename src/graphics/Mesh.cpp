@@ -8,9 +8,13 @@ Mesh::Mesh(const float* vertices, unsigned int dataSize, unsigned int count) {
 
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, dataSize, vertices, GL_STATIC_DRAW);
+    
+    // 1. Orphan the buffer memory asynchronously to prevent pipeline stalls
+    glBufferData(GL_ARRAY_BUFFER, dataSize, nullptr, GL_DYNAMIC_DRAW);
+    
+    // 2. Upload vertex data into the allocated buffer
+    glBufferSubData(GL_ARRAY_BUFFER, 0, dataSize, vertices);
 
-    // Example layout inside Mesh.cpp constructor / setup
     size_t stride = 7 * sizeof(float);
 
     // 1. Position attribute (Location 0)

@@ -7,8 +7,11 @@
 #include "graphics/Texture.h"
 #include "graphics/Frustum.h"
 #include "world/BlockRegistry.h"
+#include "world/Chunk.h"
 #include "world/World.h"
 #include <iostream>
+#include <cstdlib>
+#include <ctime>
 
 const unsigned int SCR_WIDTH = 1280;
 const unsigned int SCR_HEIGHT = 720;
@@ -73,9 +76,7 @@ int main()
     }
     glfwMakeContextCurrent(window);
 
-    // Disable V-Sync for unthrottled benchmarking (set to 1 to lock to monitor refresh)
     glfwSwapInterval(0);
-
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -88,32 +89,29 @@ int main()
 
     Shader ourShader("shaders/vertex.vs", "shaders/fragment.fs");
 
-    // Initialize World with seed
     unsigned int worldSeed = static_cast<unsigned int>(time(nullptr));
     srand(worldSeed);
 
     World world(worldSeed);
 
-    // Load Atlas Texture
     Texture terrainAtlas("assets/textures/textures.png");
     ourShader.use();
     ourShader.setInt("texture1", 0);
 
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
-    Camera camera(glm::vec3(8.0f, 85.0f, 25.0f)); // Positioned above terrain looking down
+    Camera camera(glm::vec3(8.0f, 85.0f, 25.0f));
 
     // 1. Calculate initial player chunk coordinates
     int pChunkX = (camera.Position.x >= 0) ? (static_cast<int>(camera.Position.x) / CHUNK_WIDTH) : ((static_cast<int>(camera.Position.x) - CHUNK_WIDTH + 1) / CHUNK_WIDTH);
     int pChunkZ = (camera.Position.z >= 0) ? (static_cast<int>(camera.Position.z) / CHUNK_DEPTH) : ((static_cast<int>(camera.Position.z) - CHUNK_DEPTH + 1) / CHUNK_DEPTH);
 
-    // 2. Preload the initial render distance area (e.g. radius 16) and flush the mesh queue instantly on startup
-    world.UpdateStreaming(pChunkX, pChunkZ, 16);
-    world.ProcessMeshQueue(999999); // Drain the queue fully so frame 1 has everything built
+    // 2. Preload initial chunks and drain queues fully so frame 1 is completely rendered
+    world.UpdateStreaming(pChunkX, pChunkZ, 4);
+    world.ProcessQueues(99999.0, 99999.0);
 
     Frustum camFrustum;
 
-    // Performance tracking variables
     float lastTime = static_cast<float>(glfwGetTime());
     int nbFrames = 0;
 
@@ -132,8 +130,7 @@ int main()
 
         totalFramesRendered++;
 
-        // SPRINT MECHANIC: Check if Left Control is pressed to scale movement speed
-        float velocityMultiplier = 1.0f;
+        float velocityMultiplier = 2.0f;
         if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
         {
             velocityMultiplier = 10.0f;
@@ -155,17 +152,14 @@ int main()
 
         processInput(window);
 
-        // Calculate player chunk coordinates from camera position
-        int pChunkX = (camera.Position.x >= 0) ? (static_cast<int>(camera.Position.x) / CHUNK_WIDTH) : ((static_cast<int>(camera.Position.x) - CHUNK_WIDTH + 1) / CHUNK_WIDTH);
-        int pChunkZ = (camera.Position.z >= 0) ? (static_cast<int>(camera.Position.z) / CHUNK_DEPTH) : ((static_cast<int>(camera.Position.z) - CHUNK_DEPTH + 1) / CHUNK_DEPTH);
+        // 3. Calculate live player chunk coordinates every frame
+        int currentChunkX = (camera.Position.x >= 0) ? (static_cast<int>(camera.Position.x) / CHUNK_WIDTH) : ((static_cast<int>(camera.Position.x) - CHUNK_WIDTH + 1) / CHUNK_WIDTH);
+        int currentChunkZ = (camera.Position.z >= 0) ? (static_cast<int>(camera.Position.z) / CHUNK_DEPTH) : ((static_cast<int>(camera.Position.z) - CHUNK_DEPTH + 1) / CHUNK_DEPTH);
 
-        // Update dynamic chunk loading/unloading (e.g. render distance 16 chunks)
-        world.UpdateStreaming(pChunkX, pChunkZ, 16);
+        // 4. Update streaming with live coordinates and budget queue processing
+        world.UpdateStreaming(currentChunkX, currentChunkZ, 10);
+        world.ProcessQueues(1.5, 1.5);
 
-        // Process at most 1 chunk mesh upload per frame to maintain butter-smooth framerates
-        world.ProcessMeshQueue(1);
-
-        // Update live window title FPS every 1 second
         nbFrames++;
         if (currentFrame - lastTime >= 1.0f)
         {
@@ -179,6 +173,7 @@ int main()
             lastTime = currentFrame;
         }
 
+    
         glClearColor(0.6f, 0.7f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -193,7 +188,6 @@ int main()
         ourShader.setMat4("projection", projection);
         ourShader.setMat4("view", view);
 
-        // Render visible chunks with their world-space offsets
         for (const auto &[coord, chunk] : world.GetLoadedChunks())
         {
             glm::vec3 minBounds(coord.first * CHUNK_WIDTH, 0.0f, coord.second * CHUNK_DEPTH);
@@ -212,19 +206,6 @@ int main()
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
-
-    double endTime = glfwGetTime();
-    double totalSessionTime = endTime - startTime;
-    double lifetimeAvgFps = (totalSessionTime > 0.0) ? (totalFramesRendered / totalSessionTime) : 0.0;
-
-    std::cout << "\n=========================================" << std::endl;
-    std::cout << "   ENGINE BENCHMARK PERFORMANCE LOG     " << std::endl;
-    std::cout << "=========================================" << std::endl;
-    std::cout << "Total Frames Rendered: " << totalFramesRendered << std::endl;
-    std::cout << "Session Duration:      " << totalSessionTime << " s" << std::endl;
-    std::cout << "Lifetime Average FPS:  " << lifetimeAvgFps << " FPS" << std::endl;
-    std::cout << "=========================================\n"
-              << std::endl;
 
     glfwTerminate();
     return 0;
